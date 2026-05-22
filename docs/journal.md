@@ -101,9 +101,118 @@ It is about the capabilitis of a C layer (C2 development).
 ## Dynamic Router v2 (confidence‑based)
 🧠 Orchestrator v2 — Multi‑Step Cognitive Loop (Depth, Success, Termination)
 
+🧭 Phase 1 — Router v2 (Intent, Confidence, Fallbacks)
 
 
 
 2.  Memory Retrieval v2 (vector search)
 3.  Tool System v2 (real tools)
 4.  Integration tests for all of the above
+5.  
+🧭 Phase 1 — Router v2 (Intent, Confidence, Fallbacks)
+This upgrade gives the brain the ability to choose the right mode of thinking:
+
+What Router v2 adds:
+Intent classification  
+(search, math, chat, memory, reasoning, tool-use, etc.)
+
+Confidence scoring  
+(LLM confidence → route to tool or memory if low)
+
+Fallback routing  
+(if LLM fails → escalate to tool)
+
+Hallucination detection  
+(low-confidence → avoid LLM-only answers)
+
+“I don’t know” detection  
+(route to search or memory)
+
+Safety routing  
+(avoid unsafe tool calls)
+
+Why this comes first:
+Because Planner v3.5 and Memory v2 both depend on the router making good decisions.
+A weak router bottlenecks the entire system.
+
+🧠 Phase 2 — Memory v2 (Vector + Hybrid Retrieval)
+Once the router can detect “this needs memory,” we give it a real memory system:
+
+What Memory v2 adds:
+Embeddings + cosine similarity
+
+Hybrid keyword + vector search
+
+Memory scoring
+
+Memory summarisation
+
+Memory pruning
+
+Memory relevance thresholds
+
+Why this comes second:
+Because Router v2 will now know when to use memory, and Planner v3.5 will know how to incorporate it.
+
+🧩 Phase 3 — Planner v3.5 (Multi‑Tool Chains + Conditional Branches)
+With a smart router and real memory, the planner can finally become strategic:
+
+What Planner v3.5 adds:
+tool → think → tool chains
+
+conditional branches based on tool output
+
+memory-first planning
+
+uncertainty-aware planning
+
+multi-step reasoning trees
+
+escalation from weak → strong tools
+
+“insufficient info → escalate” logic
+
+Why this comes third:
+Because Planner v3.5 needs:
+
+Router v2 to choose the right mode
+
+Memory v2 to supply context
+
+Orchestrator v2 to execute multi-step plans
+
+You’ve already built Orchestrator v2 — so this is the natural next leap.
+
+🌱 Phase 4 — Memory v3 (Long-term, episodic, semantic)
+This is where the brain starts to feel alive:
+
+episodic memory
+
+semantic memory
+
+working memory
+
+memory consolidation
+
+memory decay
+
+memory compression
+
+But this only makes sense after Planner v3.5 is in place.
+
+🔥 Phase 5 — Router v3 (Meta‑cognition + self-evaluation)
+This is the “brain that knows it’s thinking” layer:
+
+self-evaluation
+
+uncertainty propagation
+
+meta-routing
+
+“should I think more?”
+
+“should I stop?”
+
+“should I escalate?”
+
+This is the C6/C7 level.

@@ -10,6 +10,7 @@ from brain.c5.reflection_engine import ReflectionEngineV1
 from brain.c5.integration.c2_hooks import apply_directives_to_planner
 from brain.c5.integration.c3_hooks import apply_memory_updates
 from brain.c5.integration.c4_hooks import apply_skill_metadata_updates
+from brain.c5.trace_logger import TraceLogger
 
 
 MAX_STEPS = 5
@@ -55,6 +56,7 @@ class Orchestrator:
             # --- 1. Planning ---
             plan = self.planner.plan(state)
             planner_trace.append(plan)
+            TraceLogger.log_planner(state, plan)
 
             if not plan:
                 state.done = True
@@ -66,11 +68,13 @@ class Orchestrator:
 
             # --- 2. Routing (mode detection only) ---
             _route_mode = self.router.route(state)
+            TraceLogger.log_router(state, _route_mode)
 
             # --- 3. Execution ---
             result = self.executor.execute(step, state)
 
             executor_trace.append({"step": step, "result": result})
+            TraceLogger.log_executor(state, step, result)
 
             # History entry: include step + flattened result
             history_entry = {"step": step}
@@ -124,11 +128,13 @@ class Orchestrator:
         )
 
         reflection_output = self.reflection.reflect(reflection_input)
+        TraceLogger.log_reflection(state, reflection_output)
 
         # --- 5. Apply directives ---
         apply_directives_to_planner(self.planner, reflection_output.directives)
         apply_memory_updates(self.memory, reflection_output.memory_updates)
         apply_skill_metadata_updates(self.tools, reflection_output.directives)
+        TraceLogger.log_final(state, final_output)
 
         # --- 6. Return final output ---
         return final_output

@@ -9,7 +9,7 @@ class State:
         self.history = []
         self.tool_results = {}
         self.done = False
-
+        self.trace_log = []   # <-- NEW
 
 # --- Backwards compatibility shim ---
 # Many legacy modules still import BrainState.

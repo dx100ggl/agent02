@@ -1,5 +1,5 @@
-from brain.planner.adaptive_planner import AdaptivePlanner
-from brain.state import BrainState
+from brain.c2.planner.adaptive_planner import AdaptivePlanner
+from brain.c1.state import BrainState
 
 
 def test_planner_uses_memory_when_strong_hit_present():

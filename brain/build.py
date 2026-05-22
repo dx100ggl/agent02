@@ -1,12 +1,12 @@
-from brain.router.dynamic_router import DynamicRouter
-from brain.planner.adaptive_planner import AdaptivePlanner
-from brain.executor.executor import Executor
-from brain.tools.registry import ToolRegistry
-from brain.tools.builtin.tool_x import SearchTool
-from brain.tools.builtin.tool_y import EchoTool
-from brain.memory.store import LocalMemoryStore
-from brain.orchestrator import Orchestrator
-from brain.state import BrainState
+from brain.c2.router.dynamic_router import DynamicRouter
+from brain.c2.planner.adaptive_planner import AdaptivePlanner
+from brain.c2.executor.executor import Executor
+from brain.c4.tools.registry import ToolRegistry
+from brain.c4.tools.builtin.tool_x import SearchTool
+from brain.c4.tools.builtin.tool_y import EchoTool
+from brain.c3.memory.store import LocalMemoryStore
+from brain.c2.orchestrator import Orchestrator
+from brain.c1.state import BrainState
 
 
 # ---------------------------------------------------------

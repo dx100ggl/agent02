@@ -1,5 +1,5 @@
-from brain.planner.adaptive_planner import AdaptivePlanner
-from brain.state import BrainState
+from brain.c2.planner.adaptive_planner import AdaptivePlanner
+from brain.c1.state import BrainState
 
 
 def test_planner_thinks_after_successful_tool():

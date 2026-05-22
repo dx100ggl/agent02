@@ -1,7 +1,7 @@
-from brain.memory.embeddings import SimpleEmbedder
-from brain.memory.store import MemoryStore
-from brain.memory.retriever import MemoryRetriever
-from brain.state import BrainState
+from brain.c3.memory.embeddings import SimpleEmbedder
+from brain.c3.memory.store import MemoryStore
+from brain.c3.memory.retriever import MemoryRetriever
+from brain.c1.state import BrainState
 
 
 def test_embedder_is_deterministic():

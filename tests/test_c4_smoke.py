@@ -1,7 +1,7 @@
 from brain.build import run_brain, build_brain
-from brain.state import BrainState
-from brain.tools.registry import ToolRegistry
-from brain.memory.store import LocalMemoryStore
+from brain.c1.state import BrainState
+from brain.c4.tools.registry import ToolRegistry
+from brain.c3.memory.store import LocalMemoryStore
 
 
 def test_c4_smoke_llm_mode():
@@ -43,8 +43,8 @@ def test_c4_smoke_orchestrator_loop_runs():
 
 def test_c4_smoke_router_modes():
     """Router should switch modes based on input."""
-    from brain.router.dynamic_router import DynamicRouter
-    from brain.state import BrainState
+    from brain.c2.router.dynamic_router import DynamicRouter
+    from brain.c1.state import BrainState
 
     router = DynamicRouter()
 
@@ -54,8 +54,8 @@ def test_c4_smoke_router_modes():
 
 def test_c4_smoke_planner_adaptive():
     """Planner should revise plan on error."""
-    from brain.planner.adaptive_planner import AdaptivePlanner
-    from brain.state import BrainState
+    from brain.c2.planner.adaptive_planner import AdaptivePlanner
+    from brain.c1.state import BrainState
 
     planner = AdaptivePlanner()
     state = BrainState("hello")
@@ -71,8 +71,8 @@ def test_c4_smoke_planner_adaptive():
 
 
 def test_c4_planner_escalates_after_retries():
-    from brain.planner.adaptive_planner import AdaptivePlanner
-    from brain.state import BrainState
+    from brain.c2.planner.adaptive_planner import AdaptivePlanner
+    from brain.c1.state import BrainState
 
     planner = AdaptivePlanner()
     state = BrainState("something hard")

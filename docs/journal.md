@@ -78,3 +78,32 @@ It is about the capabilitis of a C layer (C2 development).
 | **P0** | Reactive | Observe, log | Observation, basic evaluation |
 | **P1** | Adaptive | Evaluate, intervene, update memory | Directive, memory update, basic strategy |
 | **P2** | Strategic | Predict, optimize, enforce alignment | Full C2Turn, advanced strategy |
+
+# Development tracker
+
+## Adaptive Planner v2 (branching, retries, escalation)
+
+3 steps to take
+
+| Step | File | Why |
+| --- | --- | --- |
+| 1 | ``brain/planner/adaptive_planner.py`` | Planner v2 logic |
+| **2** | ``brain/orchestrator.py`` | Record retries + errors |
+| 3 | (optional) tests | Validate retry/escalation |
+
+- a dynamic router
+- an adaptive planner with retries + escalation
+- a working orchestrator
+- a functioning tool system
+- a memory subsystem
+- and a full test suite proving all of it
+
+## Dynamic Router v2 (confidence‑based)
+🧠 Orchestrator v2 — Multi‑Step Cognitive Loop (Depth, Success, Termination)
+
+
+
+
+2.  Memory Retrieval v2 (vector search)
+3.  Tool System v2 (real tools)
+4.  Integration tests for all of the above

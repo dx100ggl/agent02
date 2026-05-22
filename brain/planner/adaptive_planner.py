@@ -6,19 +6,21 @@ from brain.state import BrainState
 
 class AdaptivePlanner(Planner):
     """
-    Planner v2:
-    - Builds a multi-step plan.
-    - Retries failed steps (up to N).
-    - Escalates to tools after repeated failure.
+    AdaptivePlanner v3 (corrected)
+
+    - Keeps v2 behavior (retries + escalation).
+    - Adds analyze-after-tool behavior.
+    - Ensures successful tool follow-up overrides keyword intent.
     """
 
     MAX_RETRIES = 2
 
     def plan(self, state: BrainState) -> List[Dict[str, Any]]:
         last = state.history[-1] if state.history else None
+        text = (state.user_input or "").lower()
 
         # ---------------------------------------------------------
-        # 1. If last step failed → decide whether to retry or escalate
+        # 1. Error handling: retry or escalate
         # ---------------------------------------------------------
         if last and last.get("error"):
 
@@ -45,7 +47,19 @@ class AdaptivePlanner(Planner):
                 "args": {"query": state.user_input},
             }]
 
-            # Too many retries → escalate to tool
+        # ---------------------------------------------------------
+        # 2. Analyze-after-tool (MUST override keyword intent)
+        # ---------------------------------------------------------
+        if last and not last.get("error") and "step" in last:
+            step = last["step"]
+            if step.get("action") == "use_tool":
+                # We just used a tool successfully → now think about it.
+                return [{"action": "think"}]
+
+        # ---------------------------------------------------------
+        # 3. Tool-first intent (only if no tool was just used)
+        # ---------------------------------------------------------
+        if "search" in text:
             return [{
                 "action": "use_tool",
                 "tool": "search",
@@ -53,29 +67,12 @@ class AdaptivePlanner(Planner):
             }]
 
         # ---------------------------------------------------------
-        # 2. If user input clearly suggests tool usage → tool-first plan
-        # ---------------------------------------------------------
-        if "search" in state.user_input.lower():
-            return [
-                {
-                    "action": "use_tool",
-                    "tool": "search",
-                    "args": {"query": state.user_input},
-                },
-                {
-                    "action": "think",
-                },
-            ]
-
-        # ---------------------------------------------------------
-        # 3. Default: simple two-step plan (think → maybe tool later)
+        # 4. Default: LLM-only think step
         # ---------------------------------------------------------
         if not state.plan:
-            return [
-                {"action": "think"},
-            ]
+            return [{"action": "think"}]
 
         # ---------------------------------------------------------
-        # 4. Fallback: keep existing plan if present
+        # 5. Fallback: reuse existing plan
         # ---------------------------------------------------------
         return state.plan

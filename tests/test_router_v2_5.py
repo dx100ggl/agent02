@@ -1,6 +1,6 @@
-from brain.router.dynamic_router import DynamicRouter
-from brain.memory.store import MemoryStore
-from brain.state import BrainState
+from brain.c2.router.dynamic_router import DynamicRouter
+from brain.c3.memory.store import MemoryStore
+from brain.c1.state import BrainState
 
 
 def test_router_memory_first_when_relevant():

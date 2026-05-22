@@ -1,5 +1,5 @@
-from brain.router.dynamic_router import DynamicRouter
-from brain.state import BrainState
+from brain.c2.router.dynamic_router import DynamicRouter
+from brain.c1.state import BrainState
 
 
 def test_router_routes_search_to_tool():

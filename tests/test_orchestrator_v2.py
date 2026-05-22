@@ -1,5 +1,5 @@
 from brain.build import build_brain
-from brain.state import BrainState
+from brain.c1.state import BrainState
 
 
 def test_orchestrator_runs_multi_step_plan():

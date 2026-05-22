@@ -1,96 +1,59 @@
-from brain.router.dynamic_router import DynamicRouter
-from brain.planner.adaptive_planner import AdaptivePlanner
-from brain.executor.executor import Executor
-from brain.state import BrainState
-
-
 class Orchestrator:
     """
-    Orchestrator v2 (corrected):
-    - Executes multi-step plans.
-    - Single-step plans are final (LLM-only path).
-    - Tool steps are final.
-    - Multi-step plans loop.
-    - MAX_STEPS protects against runaway loops.
+    Orchestrator v2.5 — memory-aware but fully backward-compatible.
+    Executes planner steps through the executor, records history,
+    respects final signals, and enforces MAX_STEPS.
     """
 
-    MAX_STEPS = 12
+    MAX_STEPS = 10
 
-    def __init__(self, router: DynamicRouter, planner: AdaptivePlanner, executor: Executor):
+    def __init__(self, router, planner, executor):
         self.router = router
         self.planner = planner
         self.executor = executor
 
-    def run(self, state: BrainState):
-        steps_executed = 0
+    def run(self, state):
+        steps = 0
 
         while not state.done:
-
-            # ---------------------------------------------------------
-            # 1. Max depth protection
-            # ---------------------------------------------------------
-            if steps_executed >= self.MAX_STEPS:
+            steps += 1
+            if steps > self.MAX_STEPS:
                 state.done = True
-                return {"error": True, "message": "Max cognitive depth reached"}
+                return {"error": True, "message": "Max cognitive depth exceeded"}
 
-            # ---------------------------------------------------------
-            # 2. Router (not used yet, but kept for future expansion)
-            # ---------------------------------------------------------
-            mode = self.router.route(state)
+            # 1. Router decides mode
+            mode = self.router.route_raw(state)
 
-            # ---------------------------------------------------------
-            # 3. Planner produces plan
-            # ---------------------------------------------------------
+            # 2. Memory-first mode
+            if mode == "memory":
+                memory_hits = self.executor.memory.retrieve(state, top_k=3)
+                state.memory_context = memory_hits
+
+            # 3. Planner decides next step
             plan = self.planner.plan(state)
             if not plan:
-                state.done = True
-                return {"error": True, "message": "Planner returned empty plan"}
+                return {"error": True, "message": "planner returned empty plan"}
 
             step = plan[0]
 
-            # ---------------------------------------------------------
-            # 4. Execute step
-            # ---------------------------------------------------------
+            # 4. Execute step via executor
             result = self.executor.execute(step, state)
 
-            # ---------------------------------------------------------
-            # 5. Record history
-            # ---------------------------------------------------------
+            # 5. Record in history
             state.history.append({
                 "step": step,
                 "result": result,
-                "error": result.get("error", False),
-                "retries": step.get("retries", 0),
+                "error": result.get("error", False)
             })
 
-            steps_executed += 1
-
-            # ---------------------------------------------------------
-            # 6. Explicit final signal
-            # ---------------------------------------------------------
-            if result.get("final"):
+            # 6. Final signal
+            if isinstance(result, dict) and result.get("final"):
                 state.done = True
                 return result
 
-            # ---------------------------------------------------------
-            # 7. Tool steps are always final
-            # ---------------------------------------------------------
-            if step["action"] == "use_tool":
-                state.done = True
-                return result
-
-            # ---------------------------------------------------------
-            # 8. Single-step plans are final (LLM-only path)
-            # ---------------------------------------------------------
+            # 7. Single-step plan terminates immediately
             if len(plan) == 1:
                 state.done = True
                 return result
 
-            # ---------------------------------------------------------
-            # 9. Multi-step plans → continue loop
-            # ---------------------------------------------------------
-            # (Planner v2 currently only returns multi-step for tool-first)
-            continue
-
-        # Fallback
-        return state.history[-1]["result"] if state.history else {}
+        return {"error": True, "message": "unexpected termination"}

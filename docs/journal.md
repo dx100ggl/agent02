@@ -113,72 +113,18 @@ It is about the capabilitis of a C layer (C2 development).
 This upgrade gives the brain the ability to choose the right mode of thinking:
 
 What Router v2 adds:
-Intent classification  
-(search, math, chat, memory, reasoning, tool-use, etc.)
-
-Confidence scoring  
-(LLM confidence → route to tool or memory if low)
-
-Fallback routing  
-(if LLM fails → escalate to tool)
-
-Hallucination detection  
-(low-confidence → avoid LLM-only answers)
-
-“I don’t know” detection  
-(route to search or memory)
-
-Safety routing  
-(avoid unsafe tool calls)
-
-Why this comes first:
-Because Planner v3.5 and Memory v2 both depend on the router making good decisions.
-A weak router bottlenecks the entire system.
 
 🧠 Phase 2 — Memory v2 (Vector + Hybrid Retrieval)
 Once the router can detect “this needs memory,” we give it a real memory system:
-
-What Memory v2 adds:
-Embeddings + cosine similarity
-
-Hybrid keyword + vector search
-
-Memory scoring
-
-Memory summarisation
-
-Memory pruning
-
-Memory relevance thresholds
-
-Why this comes second:
-Because Router v2 will now know when to use memory, and Planner v3.5 will know how to incorporate it.
-
 🧩 Phase 3 — Planner v3.5 (Multi‑Tool Chains + Conditional Branches)
 With a smart router and real memory, the planner can finally become strategic:
 
 What Planner v3.5 adds:
-tool → think → tool chains
-
-conditional branches based on tool output
-
-memory-first planning
-
-uncertainty-aware planning
-
-multi-step reasoning trees
-
-escalation from weak → strong tools
-
-“insufficient info → escalate” logic
 
 Why this comes third:
 Because Planner v3.5 needs:
-
 Router v2 to choose the right mode
-
 Memory v2 to supply context
-
 Orchestrator v2 to execute multi-step plans
 
 You’ve already built Orchestrator v2 — so this is the natural next leap.
@@ -216,3 +162,8 @@ meta-routing
 “should I escalate?”
 
 This is the C6/C7 level.
+
+**Orchestrator v2.5**
+
+ this is the moment where your system stops being a “planner + router + memory” and becomes a coherent cognitive loop.
+Orchestrator v2.5 is the glue that makes Router v2.5 and Planner v3.5 actually work together.

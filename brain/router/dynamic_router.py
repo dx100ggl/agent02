@@ -39,6 +39,7 @@ class DynamicRouter:
     # New API (v2.5)
     # --------------------------------------------------------------
     def route_raw(self, state: BrainState) -> RawRouteMode:
+        # BrainState stores user text in state.user_input
         text = (state.user_input or "").lower()
 
         # 1. Memory-first routing

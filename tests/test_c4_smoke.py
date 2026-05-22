@@ -68,3 +68,28 @@ def test_c4_smoke_planner_adaptive():
     state.history.append({"error": True})
     plan2 = planner.plan(state)
     assert plan2[0]["action"] == "use_tool"
+
+
+def test_c4_planner_escalates_after_retries():
+    from brain.planner.adaptive_planner import AdaptivePlanner
+    from brain.state import BrainState
+
+    planner = AdaptivePlanner()
+    state = BrainState("something hard")
+
+    # simulate two failed attempts
+    state.history.append({"step": {"action": "think"}, "error": True, "retries": 0})
+    plan1 = planner.plan(state)
+    assert plan1[0]["action"] == "think"
+    assert plan1[0].get("retries") == 1
+
+    state.history.append({"step": plan1[0], "error": True, "retries": 1})
+    plan2 = planner.plan(state)
+    assert plan2[0]["action"] == "think"
+    assert plan2[0].get("retries") == 2
+
+    # third failure → escalate to tool
+    state.history.append({"step": plan2[0], "error": True, "retries": 2})
+    plan3 = planner.plan(state)
+    assert plan3[0]["action"] == "use_tool"
+    assert plan3[0]["tool"] == "search"

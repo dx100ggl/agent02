@@ -21,7 +21,13 @@ class Orchestrator:
             step = state.plan.pop(0)
             result = self.executor.execute(step, state)
 
-            state.history.append({"step": step, "result": result})
+            state.history.append({
+                "step": step,
+                "result": result,
+                "error": result.get("error", False),
+                "retries": step.get("retries", 0),
+            })
+
 
             if len(state.history) > 5:
                 state.done = True

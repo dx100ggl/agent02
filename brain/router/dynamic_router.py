@@ -1,44 +1,74 @@
-from typing import Literal
+from typing import Literal, Optional
+
 from brain.state import BrainState
+from brain.memory.retriever import MemoryRetriever
+from brain.memory.store import MemoryStore
 
 LegacyRouteMode = Literal["llm_mode", "tool_mode"]
-RawRouteMode = Literal["llm", "tool"]
+RawRouteMode = Literal["llm", "tool", "memory"]
 
 
 class DynamicRouter:
     """
-    DynamicRouter v2 (dual-compatible)
+    DynamicRouter v2.5 — memory-aware routing.
 
     - route()      → legacy API ("llm_mode" / "tool_mode")
-    - route_raw()  → v2 API ("llm" / "tool")
+    - route_raw()  → new API ("llm" / "tool" / "memory")
 
-    This keeps all old tests green while allowing new v2 tests to use the
-    modern interface.
+    New behavior:
+        * If memory has a strong match → "memory"
+        * Else if intent == search → "tool"
+        * Else → "llm"
     """
 
-    def __init__(self):
-        pass
+    def __init__(self, memory: Optional[MemoryStore] = None):
+        self.memory = memory or MemoryStore()
+        self.retriever = MemoryRetriever(store=self.memory)
 
     # --------------------------------------------------------------
     # Legacy API (used by orchestrator + old tests)
     # --------------------------------------------------------------
     def route(self, state: BrainState) -> LegacyRouteMode:
         raw = self.route_raw(state)
-        return "tool_mode" if raw == "tool" else "llm_mode"
+        if raw == "tool":
+            return "tool_mode"
+        # "memory" and "llm" both map to llm_mode for legacy compatibility
+        return "llm_mode"
 
     # --------------------------------------------------------------
-    # New API (used by router_v2 tests)
+    # New API (v2.5)
     # --------------------------------------------------------------
     def route_raw(self, state: BrainState) -> RawRouteMode:
         text = (state.user_input or "").lower()
-        intent = self._classify_intent(text)
 
+        # 1. Memory-first routing
+        if self._memory_relevant(state):
+            return "memory"
+
+        # 2. Intent classification
+        intent = self._classify_intent(text)
         if intent == "search":
             return "tool"
+
+        # 3. Default: LLM
         return "llm"
 
     # --------------------------------------------------------------
-    # Internal helpers
+    # Memory relevance check
+    # --------------------------------------------------------------
+    def _memory_relevant(self, state: BrainState) -> bool:
+        """
+        Returns True if memory contains a strong match.
+        """
+        results = self.retriever.retrieve(state, top_k=1)
+        if not results:
+            return False
+
+        # Strong match threshold
+        return results[0]["score"] >= 0.75
+
+    # --------------------------------------------------------------
+    # Intent classifier
     # --------------------------------------------------------------
     def _classify_intent(self, text: str) -> str:
         if not text:
@@ -58,8 +88,3 @@ class DynamicRouter:
                 return "search"
 
         return "chat"
-
-    def _score_confidence(self, text: str) -> float:
-        if not text:
-            return 0.5
-        return 0.8

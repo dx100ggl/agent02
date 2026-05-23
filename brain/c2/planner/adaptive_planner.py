@@ -1,3 +1,6 @@
+# brain/c2/planner/adaptive_planner.py
+
+
 from typing import List, Dict, Any
 
 from brain.c2.planner.base import Planner
@@ -85,8 +88,13 @@ class AdaptivePlanner(Planner):
         # ---------------------------------------------------------
         # 5. Default: LLM-only think step
         # ---------------------------------------------------------
+        # 5. Default: LLM call
         if not state.plan:
-            return [{"action": "think"}]
+            return [{
+                "action": "llm",
+                "prompt": state.user_input,
+            }]
+
 
         # ---------------------------------------------------------
         # 6. Fallback: reuse existing plan

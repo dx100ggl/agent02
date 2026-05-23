@@ -196,3 +196,9 @@ C7 (Self‑Model)
 C8 (Whole‑Brain Integration)
 ```
 C5 sits after execution but before memory consolidation.
+
+At the junction of REPL using LMS and C6, Copilot believes the LLM using LM Studio is a better choice.
+
+```
+Let’s wire LM Studio as the live LLM backend first — that gives you immediate, tangible power in the REPL, and C6 will be more interesting once the brain is talking to a real model.
+```

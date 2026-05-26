@@ -1,9 +1,8 @@
-# brain/c2/orchestrator.py
-
-from typing import Optional
+from typing import Optional, List, Dict, Any
 
 from brain.c1.state import State
-from brain.c2.planner.adaptive_planner import AdaptivePlanner
+from brain.c1.planner.adaptive_planner import AdaptivePlanner
+from brain.c1.planner.plan import Plan
 from brain.c2.router.dynamic_router import DynamicRouter
 from brain.c2.executor.executor import Executor
 
@@ -16,144 +15,108 @@ from brain.c5.integration.c3_hooks import apply_memory_updates
 from brain.c5.integration.c4_hooks import apply_skill_metadata_updates
 from brain.c5.trace_logger import TraceLogger
 
-from brain.c6 import MetaController  # NEW
-
-MAX_STEPS = 5
+from brain.c2.meta_controller import MetaController
+from brain.c2.meta_planner import C2MetaPlanner
+from brain.c2.evaluator import C2Evaluator
+from brain.c2.repair_planner import C2RepairPlanner
 
 
 class Orchestrator:
     """
-    Brain-24 Orchestrator (C2.5)
-
-    Semantics (aligned with tests):
-    - Planner is called each iteration.
-    - Only the FIRST step of the plan is executed.
-    - Single-step plan => treat result as final.
-    - Stop on {"final": True} or {"error": True}.
-    - Enforce MAX_STEPS with an error.
-    - Append each result to state.history as:
-        {"step": step, ...flattened result...}
-    - Set state.done = True on any termination.
+    Brain-24 Orchestrator (C2.5 / C6 integrated).
     """
 
     def __init__(
         self,
-        router=None,
-        planner=None,
-        executor=None,
-        tools=None,
-        memory=None,
-        meta_controller: Optional[MetaController] = None,  # NEW, optional
+        router: Optional[DynamicRouter] = None,
+        planner: Optional[AdaptivePlanner] = None,
+        executor: Optional[Executor] = None,
+        tools: Optional[ToolRegistry] = None,
+        memory: Optional[MemoryStore] = None,
+        meta_controller: Optional[MetaController] = None,
     ):
         self.state = State()
 
-        # C3 / C4
         self.memory = memory if memory is not None else MemoryStore()
         self.tools = tools if tools is not None else ToolRegistry()
 
-        # C2
-        self.planner = planner if planner is not None else AdaptivePlanner()
+        self.planner = planner if planner is not None else AdaptivePlanner(tools=self.tools)
         self.router = router if router is not None else DynamicRouter()
-        self.executor = executor if executor is not None else Executor()
+        self.executor = executor if executor is not None else Executor(
+            tools=self.tools,
+            memory=self.memory,
+        )
 
-        # C5
+        self.meta_planner = C2MetaPlanner()
+        self.plan_evaluator = C2Evaluator()
+        self.repair_planner = C2RepairPlanner()
+
         self.reflection = ReflectionEngineV1()
+        self.meta_controller = meta_controller if meta_controller is not None else MetaController()
 
-        # C6 (optional)
-        self.meta_controller = meta_controller
-
-    
-    def run(self, state):
+    def run(self, state: State):
         self.state = state
 
-        planner_trace = []
-        executor_trace = []
-        final_output = None
-        error = None
-        steps = 0
+        planner_trace: List[Any] = []
+        executor_trace: List[Dict[str, Any]] = []
+        final_output: Any = None
+        error: Optional[Dict[str, Any]] = None
 
-        while True:
-            # --- 1. Memory retrieval (C3) BEFORE planning ---
-            # This allows the planner to see memory_results via state.memory_results
-            memory_results = self.memory.search(state.user_input)
-            state.memory_results = memory_results
+        # 1. Memory retrieval
+        memory_results = self.memory.search(state.user_input)
+        state.memory_results = memory_results
 
-            # --- 2. Planning (C2) ---
-            plan = self.planner.plan(state)
-            planner_trace.append(plan)
-            TraceLogger.log_planner(state, plan)
+        # 2. C2 meta-planning
+        directive = self.meta_planner.create_directive(state.user_input)
 
-            if not plan:
-                state.done = True
-                final_output = {"error": True, "message": "empty plan"}
-                break
+        # 3. C1 planning (tool-aware, memory-guided)
+        plan: Plan = self.planner.create_plan(
+            user_input=state.user_input,
+            directive=directive,
+            memory_results=memory_results,
+        )
 
-            # Single-step termination rule: execute only the first step
-            step = plan[0]
+        plan.log(
+            "c2_meta_planning",
+            {
+                "mode": directive.mode.value,
+                "schema": directive.schema,
+            },
+        )
+        TraceLogger.log_planner(state, plan)
+        planner_trace.append(plan)
 
-            # --- 3. Routing (C2 router: mode detection only) ---
-            route_mode = self.router.route(state)
-            TraceLogger.log_router(state, route_mode)
+        # 4. C2 evaluation
+        eval_result = self.plan_evaluator.evaluate_plan(plan)
+        plan.log("c2_evaluation", eval_result)
 
-            # --- 4. Execution (C2 executor) ---
-            result = self.executor.execute(step, state)
+        if not eval_result.get("ok", True):
+            repaired = self.repair_planner.repair(plan)
+            plan.log("c2_repair", repaired)
 
-            executor_trace.append({"step": step, "result": result})
-            TraceLogger.log_executor(state, step, result)
+        # 5. Routing
+        route_mode = self.router.route(state)
+        TraceLogger.log_router(state, route_mode)
 
-            # --- 5. History entry (C1 state) ---
-            history_entry = {"step": step, "route_mode": route_mode}
-            if isinstance(result, dict):
-                history_entry.update(result)
-            else:
-                history_entry["result"] = result
-            state.history.append(history_entry)
+        # 6. Execution
+        plan.log("execution_start", {"steps": len(plan.steps)})
+        final_output = self.executor.execute_plan(plan, state)
+        plan.log("execution_end", {"final_output": final_output})
 
-            final_output = result
-            steps += 1
+        executor_trace.append({"plan": plan, "final_output": final_output})
+        TraceLogger.log_executor(state, {"plan": "plan_v2"}, {"final_output": final_output})
 
-            # --- 6. Termination conditions ---
-            # Stop on explicit final
-            if isinstance(result, dict) and result.get("final"):
-                state.done = True
-                break
+        # 7. History
+        state.history.append(
+            {
+                "plan_meta": plan.meta,
+                "route_mode": route_mode,
+                "final_output": final_output,
+            }
+        )
+        state.done = True
 
-            # Stop on explicit error
-            if isinstance(result, dict) and result.get("error"):
-                state.done = True
-                error = result
-                break
-
-            # Single-step plan is NOT final if the step is a memory search.
-            # Allow planner to schedule follow-up LLM step.
-            if len(plan) == 1:
-                step = plan[0]
-                if step.get("action") == "use_tool" and step.get("tool") == "search_memory":
-                    # Do NOT terminate — allow next iteration
-                    pass
-                else:
-                    state.done = True
-                    break
-
-
-            # Max depth guard
-            if steps >= MAX_STEPS:
-                final_output = {
-                    "error": True,
-                    "message": "Max cognitive depth exceeded",
-                }
-                error = final_output
-                state.history.append(
-                    {
-                        "step": {"action": "guard"},
-                        "error": True,
-                        "message": final_output["message"],
-                    }
-                )
-                state.done = True
-                break
-
-        # --- 7. Reflection (C5) ---
+        # 8. Reflection
         from brain.c5.reflection_types import ReflectionInput
 
         reflection_input = ReflectionInput(
@@ -162,20 +125,21 @@ class Orchestrator:
             executor_trace=executor_trace,
             final_output=final_output,
             error=error,
+            plan_trace=plan.trace,
         )
 
         reflection_output = self.reflection.reflect(reflection_input)
         TraceLogger.log_reflection(state, reflection_output)
 
-        # --- 8. Apply directives / memory updates / skill metadata (C5 → C2/C3/C4) ---
+        # 9. Apply reflection outputs
         apply_directives_to_planner(self.planner, reflection_output.directives)
         apply_memory_updates(self.memory, reflection_output.memory_updates)
         apply_skill_metadata_updates(self.tools, reflection_output.directives)
         TraceLogger.log_final(state, final_output)
 
-        # --- 8b. Meta-cognition (C6, optional) ---
+        # 10. Meta-cognition (C6)
         if self.meta_controller is not None:
-            from brain.c6.meta_types import MetaSignal
+            from brain.c2.meta_types import MetaSignal
 
             trace_log = getattr(state, "trace_log", [])
 
@@ -191,13 +155,21 @@ class Orchestrator:
 
             meta_decision = self.meta_controller.observe_cycle(signal)
 
-            # For Option C, we only *log* the decision for now.
-            # Behavioural hooks can be added later without breaking tests.
+            if meta_decision.action == "increase_depth":
+                self.planner.set_preference("planning_depth", meta_decision.value)
+            elif meta_decision.action == "reduce_depth":
+                self.planner.set_preference("planning_depth", meta_decision.value)
+            elif meta_decision.action == "switch_mode":
+                self.planner.meta_mode = meta_decision.value
+
             TraceLogger.log(
                 state,
                 f"[meta] decision={meta_decision}",
             )
 
+        # 11. Optional plan visualization
+        if getattr(state, "debug_visualize_plan", False):
+            from brain.c2.plan_visualizer import PlanVisualizer
+            state.plan_visualization = PlanVisualizer.visualize(plan)
 
-        # --- 9. Return final output ---
         return final_output

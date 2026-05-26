@@ -2,10 +2,9 @@ from __future__ import annotations
 
 from typing import Optional
 
+from brain.c2.meta_types import MetaConfig, MetaSignal, MetaDecision
 from brain.c5.heuristics.efficiency_rules import estimate_efficiency_risk
 from brain.c5.heuristics.hallucination_rules import estimate_hallucination_risk
-from brain.c6.meta_types import MetaConfig, MetaSignal, MetaDecision
-
 
 class SimpleMetaPolicy:
     """

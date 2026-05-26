@@ -1,5 +1,3 @@
-# brain/c5/reflection_engine.py
-
 from typing import Optional, List
 
 from .reflection_types import (
@@ -21,58 +19,66 @@ class ReflectionEngineV1:
         directives: List[ReflectionDirective] = []
         memory_updates = {}
 
-        # --- Planning errors ---
         if self._detect_missing_preconditions(r):
             findings.append(ReflectionFinding(
                 category="planning_error",
                 description="Planner executed steps without required preconditions.",
-                evidence="Trace analysis"
+                evidence="Trace analysis",
             ))
             directives.append(ReflectionDirective(
                 directive="Ensure precondition checks before tool calls.",
-                priority=5
+                priority=5,
             ))
 
-        # --- Tool misuse ---
         misuse = self._detect_tool_misuse(r)
         if misuse:
             findings.append(ReflectionFinding(
                 category="tool_misuse",
                 description=misuse,
-                evidence="Executor trace"
+                evidence="Executor trace",
             ))
             directives.append(ReflectionDirective(
                 directive="Validate tool arguments against schema.",
-                priority=4
+                priority=4,
             ))
 
-        # --- Hallucination ---
         halluc = self._detect_hallucination(r)
         if halluc:
             findings.append(ReflectionFinding(
                 category="hallucination",
                 description=halluc,
-                evidence="Output vs trace mismatch"
+                evidence="Output vs trace mismatch",
             ))
             directives.append(ReflectionDirective(
                 directive="Cross-check claims against memory or tools.",
-                priority=5
+                priority=5,
             ))
 
-        # --- Efficiency ---
         if self._detect_redundancy(r):
             findings.append(ReflectionFinding(
                 category="efficiency",
                 description="Redundant or repeated steps detected.",
-                evidence="Planner trace"
+                evidence="Planner trace",
             ))
             directives.append(ReflectionDirective(
                 directive="Avoid repeating identical tool calls.",
-                priority=2
+                priority=2,
             ))
 
-        # --- Memory updates ---
         memory_updates = self._derive_memory_updates(findings, directives)
+
+        # Plan-trace driven mode adjustment
+        if r.plan_trace:
+            for event in r.plan_trace:
+                if event["event"] == "step_result":
+                    result = event["data"].get("result", {})
+                    if isinstance(result, dict) and result.get("error"):
+                        directives.append(
+                            ReflectionDirective(
+                                directive="adjust_mode:more_cautious",
+                                priority=5,
+                            )
+                        )
 
         return ReflectionOutput(
             findings=findings,
@@ -80,7 +86,6 @@ class ReflectionEngineV1:
             memory_updates=memory_updates,
         )
 
-    # --- Internal heuristics (stubs for v1) ---
     def _detect_missing_preconditions(self, r: ReflectionInput) -> bool:
         return False
 
@@ -96,5 +101,5 @@ class ReflectionEngineV1:
     def _derive_memory_updates(self, findings, directives):
         return {}
 
-# Compatibility alias expected by tests and build_brain
+
 ReflectionEngine = ReflectionEngineV1

@@ -1,55 +1,27 @@
-# brain/c4/tools/registry.py
-
-from brain.c4.tools.base import Tool
-from brain.c4.tools.builtin.lmstudio_llm import LMStudioLLM
-from brain.c4.tools.builtin.search_tool import SearchTool
-
-# New memory tools
-from brain.c4.tools.builtin.write_memory_tool import WriteMemoryTool
-from brain.c4.tools.builtin.search_memory_tool import SearchMemoryTool
+from typing import Dict, Any, Optional
+from brain.c1.planner.tool_schema import ToolSchema
 
 
 class ToolRegistry:
     """
-    Instance-based tool registry.
-
-    Supports:
-    - dynamic registration
-    - multiple LLM backends
-    - default LLM selection
-    - clean integration with Executor
-    - memory-aware tools (write_memory, search_memory)
+    Registry for all tools available to the agent.
     """
 
-    def __init__(self, memory=None):
-        # Instance-level registry
-        self.tools = {}
+    def __init__(self):
+        self.tools: Dict[str, Any] = {}
+        self.schemas: Dict[str, ToolSchema] = {}
+        self.default_llm = "llm"
 
-        # Memory is optional, but required for memory tools
-        self.memory = memory
+    def register(self, name: str, tool: Any, schema: Optional[ToolSchema] = None):
+        self.tools[name] = tool
+        if schema:
+            self.schemas[name] = schema
 
-        # -----------------------------
-        # Built-in tools
-        # -----------------------------
-        self.register(LMStudioLLM(name="lmstudio_llm"))
-        self.register(SearchTool())
-
-        # Register memory tools only if memory is provided
-        if self.memory is not None:
-            self.register(WriteMemoryTool(self.memory))
-            self.register(SearchMemoryTool(self.memory))
-
-        # Default LLM backend (can be overridden in build_brain)
-        self.default_llm = "lmstudio_llm"
-
-    # -----------------------------
-    # Registration API
-    # -----------------------------
-    def register(self, tool: Tool):
-        self.tools[tool.name] = tool
-
-    def get(self, name: str) -> Tool:
+    def get(self, name: str):
         return self.tools[name]
 
-    def list(self):
-        return list(self.tools.keys())
+    def get_schema(self, name: str) -> Optional[ToolSchema]:
+        return self.schemas.get(name)
+
+    def list_schemas(self):
+        return self.schemas

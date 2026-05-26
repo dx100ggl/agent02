@@ -225,3 +225,4 @@ Get it working, git commit C5. milestone: store/retrieve memories. Working!
 
 ## [Brain-24 C6 Overview (md file)](https://copilot.microsoft.com/shares/pages/WmxNV1waxFh5Sa5USRKjd)
 
+## [Brain-24 C6 Meta-Cognition implementation](https://copilot.microsoft.com/shares/pages/91DvJQeHcPCn6JSqqSgvk)

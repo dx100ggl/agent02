@@ -1,62 +1,79 @@
 # brain/c2/executor/executor.py
 
-from brain.c4.tools.base import Tool
+from __future__ import annotations
+from typing import Any, Dict
+
+from brain.c4.tools.registry import ToolRegistry
+from brain.c3.memory.store import MemoryStore
 
 
 class Executor:
     """
-    C2 Executor — now LLM‑aware.
-    Executes planner steps and delegates to tools or LLM backends.
+    C2 Executor.
+
+    Executes a single step:
+    - use_tool
+    - llm
+    - think (no-op)
     """
 
-    def __init__(self, tools=None, memory=None):
+    def __init__(self, tools: ToolRegistry, memory: MemoryStore):
         self.tools = tools
         self.memory = memory
 
     # ---------------------------------------------------------
-    # LLM helper
+    # Main entry point
     # ---------------------------------------------------------
-    def _call_llm(self, state, prompt: str | None = None):
-        if prompt is None:
-            prompt = getattr(state, "user_input", "")
-
-        backend_name = getattr(self.tools, "default_llm", None)
-        if backend_name is None:
-            return {"final": True, "answer": f"[LLM response to: {prompt}]"}
-
-        llm_tool = self.tools.tools.get(backend_name)
-        if llm_tool is None:
-            return {"final": True, "answer": f"[LLM response to: {prompt}]"}
-
-        return llm_tool.run(prompt)
-
-    # ---------------------------------------------------------
-    # Main execution entry
-    # ---------------------------------------------------------
-    def execute(self, step, state):
+    def execute(self, step: Dict[str, Any], state) -> Dict[str, Any]:
         action = step.get("action")
 
-        # LLM call
-        if action == "llm":
-            return self._call_llm(state, step.get("prompt"))
-
-        # Thought step
-        if action == "think":
-            return {"thought": step.get("content", "")}
-
-        # Tool call
         if action == "use_tool":
-            tool_name = step.get("tool")
-            tool_args = step.get("args", {})
+            return self._execute_tool(step, state)
 
-            tool = self.tools.tools.get(tool_name)
-            if tool is None:
-                return {"error": True, "message": f"Unknown tool: {tool_name}"}
+        if action == "llm":
+            return self._execute_llm(step, state)
 
-            return tool.run(**tool_args)
-
-        # Finish step
-        if action == "finish":
-            return {"final": True, "answer": step.get("message", "")}
+        if action == "think":
+            return {"final": False, "thought": "thinking"}
 
         return {"error": True, "message": f"Unknown action: {action}"}
+
+    # ---------------------------------------------------------
+    # Tool execution
+    # ---------------------------------------------------------
+    def _execute_tool(self, step: Dict[str, Any], state):
+        tool_name = step.get("tool")
+        tool_args = step.get("args", {})
+
+        if tool_name not in self.tools.tools:
+            return {"error": True, "message": f"Unknown tool: {tool_name}"}
+
+        tool = self.tools.get(tool_name)
+        result = tool.run(**tool_args)
+
+        # Store memory search results into state for follow-up LLM
+        if isinstance(result, dict) and "results" in result:
+            state.memory_results = result["results"]
+
+        return result
+
+    # ---------------------------------------------------------
+    # LLM execution (Option B: memory-aware)
+    # ---------------------------------------------------------
+    def _execute_llm(self, step: Dict[str, Any], state):
+        llm_tool = self.tools.get(self.tools.default_llm)
+
+        # Build memory context for the LLM
+        memory_context = ""
+        if getattr(state, "memory_results", None):
+            memory_context = "\n".join(
+                f"- {item.text}" for item in state.memory_results
+            )
+
+        # Build prompt dict for LMStudioLLM
+        prompt_payload = {
+            "text": step.get("prompt", ""),
+            "memory_context": memory_context,
+        }
+
+        return llm_tool.run(prompt_payload)

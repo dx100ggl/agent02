@@ -182,7 +182,7 @@ Current Status in C‑Architecture
 | **C5** | Reflection + self‑correction | Next  |
 ---
 
-# [Brain-25 C5 Reflection + self-correction]()
+# [Brain-25 C5 Reflection + self-correction](https://copilot.microsoft.com/shares/pages/92ubvfUjo4JfvMzKY2GcS)
 ## C5 Position in the C‑Architecture
 
 ```
@@ -202,3 +202,20 @@ At the junction of REPL using LMS and C6, Copilot believes the LLM using LM Stud
 ```
 Let’s wire LM Studio as the live LLM backend first — that gives you immediate, tangible power in the REPL, and C6 will be more interesting once the brain is talking to a real model.
 ```
+
+# 26/05/26
+
+Based of the left over stage on 23/05/26, 
+
+## realign of copilot and me
+1. at the 1/3 of the chapter [Brain-25 C5 Reflection Engine], we are at C5.3
+2. After adding brain/c6/meta_planner.py, we are at C6 — Meta‑Planner v2 (hooked in, conservative, ready to grow).
+3. Then, start to wire LM Studio as the live LLM backend, as this gives me the tangible power of REPL.
+   1. adding `brain/c4/tools/builtin/lmstudio_llm.py`
+   2. register it in `brain/c4/tools/registry.py`
+   3. add a small LLM helper in `brain/c2/executor/executor.py`
+   4. expose the LM Studio mode in `brain/build.py`
+   5. Turn on LM Studio in the REPL in `repl.py`
+   6. Add C4 memory writing tool
+   7. Add an LLM‑based intent classifie `brain/c2/planner/intent_classifier.py`
+   8. 

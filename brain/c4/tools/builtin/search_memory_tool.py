@@ -16,6 +16,6 @@ class SearchMemoryTool(Tool):
         """
         results = self.memory.search(query)
         return {
-            "final": True,
+            "final": False,
             "results": results,
         }

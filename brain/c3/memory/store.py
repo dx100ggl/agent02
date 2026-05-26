@@ -1,3 +1,5 @@
+# brain/c3/memory/store.py
+
 from __future__ import annotations
 
 from dataclasses import dataclass, field
@@ -8,6 +10,10 @@ import time
 from brain.c3.memory.embeddings import SimpleEmbedder
 
 
+# ----------------------------------------------------------
+# Memory item
+# ----------------------------------------------------------
+
 @dataclass
 class MemoryItem:
     id: int
@@ -17,12 +23,18 @@ class MemoryItem:
     created_at: float = field(default_factory=time.time)
 
 
+# ----------------------------------------------------------
+# Memory store
+# ----------------------------------------------------------
+
 class MemoryStore:
     """
-    In-memory vector store with simple hybrid retrieval.
+    In-memory vector store with hybrid retrieval.
 
-    - Stores (text, vector, metadata).
-    - Supports semantic similarity + keyword + recency.
+    IMPORTANT:
+    - search() returns MemoryItem objects (tests require this)
+    - write_fact() is an alias for add()
+    - legacy query() returns dicts
     """
 
     def __init__(self, embedder: Optional[SimpleEmbedder] = None):
@@ -33,6 +45,13 @@ class MemoryStore:
     # ----------------------------------------------------------
     # Public API
     # ----------------------------------------------------------
+
+    def write_fact(self, text: str, metadata: Optional[Dict[str, Any]] = None) -> MemoryItem:
+        """
+        New API used by write_memory_tool.
+        """
+        return self.add(text, metadata)
+
     def add(self, text: str, metadata: Optional[Dict[str, Any]] = None) -> MemoryItem:
         vec = self.embedder.embed(text)
         item = MemoryItem(
@@ -48,28 +67,34 @@ class MemoryStore:
     def all_items(self) -> List[MemoryItem]:
         return list(self._items)
 
+    # ----------------------------------------------------------
+    # Hybrid search (semantic + keyword + recency)
+    # ----------------------------------------------------------
+
     def search(self, query: str, top_k: int = 5) -> List[MemoryItem]:
+        """
+        Returns MemoryItem objects (NOT dicts).
+        Tests expect item.text and item.vector.
+        """
         if not self._items or not query:
             return []
 
         q_vec = self.embedder.embed(query)
         now = time.time()
         query_lower = query.lower()
+        query_tokens = set(query_lower.split())
 
         scored: List[tuple[float, MemoryItem]] = []
+
         for item in self._items:
+            # Semantic similarity
             sim = self._cosine(q_vec, item.vector)
 
             # Keyword bonus
-            # Token-level keyword match
-            query_tokens = set(query_lower.split())
             item_tokens = set(item.text.lower().split())
+            kw_bonus = 1.0 if query_tokens.intersection(item_tokens) else 0.0
 
-            token_overlap = query_tokens.intersection(item_tokens)
-            kw_bonus = 1.0 if token_overlap else 0.0
-
-
-            # Recency bonus (very mild)
+            # Recency bonus
             age = max(now - item.created_at, 1.0)
             recency_bonus = 0.05 / math.log(age + 1.0)
 
@@ -82,6 +107,7 @@ class MemoryStore:
     # ----------------------------------------------------------
     # Internal helpers
     # ----------------------------------------------------------
+
     @staticmethod
     def _cosine(a: List[float], b: List[float]) -> float:
         if not a or not b or len(a) != len(b):
@@ -90,33 +116,24 @@ class MemoryStore:
         na = math.sqrt(sum(x * x for x in a)) or 1.0
         nb = math.sqrt(sum(y * y for y in b)) or 1.0
         return dot / (na * nb)
-    
+
     # ----------------------------------------------------------
     # Legacy API compatibility
     # ----------------------------------------------------------
+
     def query(self, text: str, top_k: int = 5):
         """
         Legacy API used by older tests.
 
         Must return:
             [{"text": "...", "metadata": {...}, "id": ...}, ...]
-
-        NOT MemoryItem objects.
         """
         items = self.search(text, top_k=top_k)
-        results = []
-        for item in items:
-            results.append({
-                "id": item.id,
-                "text": item.text,
-                "metadata": item.metadata,
-            })
-        return results
+        return [
+            {"id": item.id, "text": item.text, "metadata": item.metadata}
+            for item in items
+        ]
 
-
-    # ----------------------------------------------------------
-    # Legacy API compatibility
-    # ----------------------------------------------------------
     def put(self, item: dict):
         """
         Legacy API used by older tests:
@@ -126,13 +143,10 @@ class MemoryStore:
         metadata = item.get("metadata", {})
         return self.add(text, metadata)
 
-# ----------------------------------------------------------------------
-# Backward compatibility for existing code expecting LocalMemoryStore
-# ----------------------------------------------------------------------
-class LocalMemoryStore(MemoryStore):
-    """
-    Legacy alias for MemoryStore.
-    Used by build_brain() and older tests.
-    """
-    pass
 
+# ----------------------------------------------------------
+# Legacy alias
+# ----------------------------------------------------------
+
+class LocalMemoryStore(MemoryStore):
+    pass

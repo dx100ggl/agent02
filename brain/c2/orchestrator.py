@@ -1,3 +1,6 @@
+# brain/c2/orchestrator.py
+
+
 from brain.c1.state import State
 from brain.c2.planner.adaptive_planner import AdaptivePlanner
 from brain.c2.router.dynamic_router import DynamicRouter
@@ -34,13 +37,16 @@ class Orchestrator:
     def __init__(self, router=None, planner=None, executor=None, tools=None, memory=None):
         self.state = State()
 
+        # C3 / C4
         self.memory = memory if memory is not None else MemoryStore()
         self.tools = tools if tools is not None else ToolRegistry()
 
+        # C2
         self.planner = planner if planner is not None else AdaptivePlanner()
         self.router = router if router is not None else DynamicRouter()
         self.executor = executor if executor is not None else Executor()
 
+        # C5
         self.reflection = ReflectionEngineV1()
 
     def run(self, state):
@@ -53,7 +59,12 @@ class Orchestrator:
         steps = 0
 
         while True:
-            # --- 1. Planning ---
+            # --- 1. Memory retrieval (C3) BEFORE planning ---
+            # This allows the planner to see memory_results via state.memory_results
+            memory_results = self.memory.search(state.user_input)
+            state.memory_results = memory_results
+
+            # --- 2. Planning (C2) ---
             plan = self.planner.plan(state)
             planner_trace.append(plan)
             TraceLogger.log_planner(state, plan)
@@ -66,18 +77,18 @@ class Orchestrator:
             # Single-step termination rule: execute only the first step
             step = plan[0]
 
-            # --- 2. Routing (mode detection only) ---
-            _route_mode = self.router.route(state)
-            TraceLogger.log_router(state, _route_mode)
+            # --- 3. Routing (C2 router: mode detection only) ---
+            route_mode = self.router.route(state)
+            TraceLogger.log_router(state, route_mode)
 
-            # --- 3. Execution ---
+            # --- 4. Execution (C2 executor) ---
             result = self.executor.execute(step, state)
 
             executor_trace.append({"step": step, "result": result})
             TraceLogger.log_executor(state, step, result)
 
-            # History entry: include step + flattened result
-            history_entry = {"step": step}
+            # --- 5. History entry (C1 state) ---
+            history_entry = {"step": step, "route_mode": route_mode}
             if isinstance(result, dict):
                 history_entry.update(result)
             else:
@@ -87,6 +98,7 @@ class Orchestrator:
             final_output = result
             steps += 1
 
+            # --- 6. Termination conditions ---
             # Stop on explicit final
             if isinstance(result, dict) and result.get("final"):
                 state.done = True
@@ -111,12 +123,16 @@ class Orchestrator:
                 }
                 error = final_output
                 state.history.append(
-                    {"step": {"action": "guard"}, "error": True, "message": final_output["message"]}
+                    {
+                        "step": {"action": "guard"},
+                        "error": True,
+                        "message": final_output["message"],
+                    }
                 )
                 state.done = True
                 break
 
-        # --- 4. Reflection (C5) ---
+        # --- 7. Reflection (C5) ---
         from brain.c5.reflection_types import ReflectionInput
 
         reflection_input = ReflectionInput(
@@ -130,11 +146,11 @@ class Orchestrator:
         reflection_output = self.reflection.reflect(reflection_input)
         TraceLogger.log_reflection(state, reflection_output)
 
-        # --- 5. Apply directives ---
+        # --- 8. Apply directives / memory updates / skill metadata (C5 → C2/C3/C4) ---
         apply_directives_to_planner(self.planner, reflection_output.directives)
         apply_memory_updates(self.memory, reflection_output.memory_updates)
         apply_skill_metadata_updates(self.tools, reflection_output.directives)
         TraceLogger.log_final(state, final_output)
 
-        # --- 6. Return final output ---
+        # --- 9. Return final output ---
         return final_output

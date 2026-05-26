@@ -40,6 +40,17 @@ class Orchestrator:
         self.memory = memory if memory is not None else MemoryStore()
         self.tools = tools if tools is not None else ToolRegistry()
 
+        # Ensure a default LLM exists
+        if "llm" not in self.tools.tools:
+            class DefaultLLM:
+                def run(self, payload):
+                    text = payload.get("text") or payload.get("prompt") or ""
+                    return {"text": f"LLM:{text}"}
+
+            self.tools.register("llm", DefaultLLM())
+            self.tools.default_llm = "llm"
+
+
         self.planner = planner if planner is not None else AdaptivePlanner(tools=self.tools)
         self.router = router if router is not None else DynamicRouter()
         self.executor = executor if executor is not None else Executor(

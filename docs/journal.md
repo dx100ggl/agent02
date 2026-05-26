@@ -226,3 +226,14 @@ Get it working, git commit C5. milestone: store/retrieve memories. Working!
 ## [Brain-24 C6 Overview (md file)](https://copilot.microsoft.com/shares/pages/WmxNV1waxFh5Sa5USRKjd)
 
 ## [Brain-24 C6 Meta-Cognition implementation](https://copilot.microsoft.com/shares/pages/91DvJQeHcPCn6JSqqSgvk)
+
+## [Brain-24 C6-C2 integration]()
+
+# Major change
+
+| Type | Prefix | Example | Meaning |
+| --- | --- | --- | --- |
+| **Cognitive layer** | ``C`` | ``C2`` | Meta‑cognition layer |
+| **Development chapter** | ``Ch`` | ``Ch6`` | Chapter 6: Meta‑Planner v2 |
+| **Document folder** | ``brain-24/Ch6/`` | ``brain-24-Ch6-meta-planner.md`` | Chapter documentation |
+| **Code folder** | ``brain/c2/`` | ``meta_planner.py`` | Implementation of the chapter’s feature |

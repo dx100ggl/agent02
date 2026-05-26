@@ -227,7 +227,7 @@ Get it working, git commit C5. milestone: store/retrieve memories. Working!
 
 ## [Brain-24 C6 Meta-Cognition implementation](https://copilot.microsoft.com/shares/pages/91DvJQeHcPCn6JSqqSgvk)
 
-## [Brain-24 C6-C2 integration]()
+## [Brain-24 C6-C2 integration](https://copilot.microsoft.com/shares/pages/XgSfPiy4qz2irJCzjW3dP)
 
 # Major change
 
@@ -237,3 +237,26 @@ Get it working, git commit C5. milestone: store/retrieve memories. Working!
 | **Development chapter** | ``Ch`` | ``Ch6`` | Chapter 6: Meta‑Planner v2 |
 | **Document folder** | ``brain-24/Ch6/`` | ``brain-24-Ch6-meta-planner.md`` | Chapter documentation |
 | **Code folder** | ``brain/c2/`` | ``meta_planner.py`` | Implementation of the chapter’s feature |
+
+
+## Table: Cognitive Layers
+
+| C-Layer | Cog-Function | Details |
+| --- | --- | --- |
+| **C1** | Immediate Cognition | - Reflexive<br> - fast<br> - single‑turn reasoning<br> - Planner<br> - executor<br> - router<br> - orchestrator |
+| **C2** | Meta‑Cognition | - Supervises C1.<br> - Evaluates, corrects, modulates planning and execution.|
+| **C3** | Self‑Directed Cognition | Goal‑setting, memory‑driven behavior, long‑term coherence. |
+| **C4** | Tool‑Augmented Cognition | tools + memory + synthesis. |
+| **C5** | Reflective Cognition |Heuristics, self‑correction, hallucination detection, efficiency rules.|
+
+
+## Development Chapters
+| Chapter | Description | Notes |
+| --- | --- | --- |
+| **Ch1** | building the reflex layer | |
+| **Ch2** | building meta‑cognition | |
+| **Ch3** | building self‑direction | |
+| **Ch4** | building tool‑use | |
+| **Ch5** | building reflection | |
+| **Ch6** | upgrading C2 to control planning | |
+| **Ch5** | upgrading C2 to evaluate planning | |

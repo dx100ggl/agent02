@@ -95,3 +95,6 @@ class ReflectionEngineV1:
 
     def _derive_memory_updates(self, findings, directives):
         return {}
+
+# Compatibility alias expected by tests and build_brain
+ReflectionEngine = ReflectionEngineV1

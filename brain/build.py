@@ -1,15 +1,18 @@
 # brain/build.py
 
+from typing import Optional
+
 from brain.c1.state import State
 from brain.c2.orchestrator import Orchestrator
 from brain.c2.planner.adaptive_planner import AdaptivePlanner
 from brain.c2.router.dynamic_router import DynamicRouter
 from brain.c2.executor.executor import Executor
-
 from brain.c3.memory.store import MemoryStore
 from brain.c4.tools.registry import ToolRegistry
 from brain.c4.tools.builtin.lmstudio_llm import LMStudioLLM
-
+from brain.c5.reflection_engine import ReflectionEngine
+from brain.c5.trace_logger import TraceLogger
+from brain.c6 import MetaController, MetaConfig
 
 # ---------------------------------------------------------
 # Component builders
@@ -43,6 +46,16 @@ def build_planner(llm_callable):
     """
     return AdaptivePlanner(llm_callable=llm_callable)
 
+def build_meta_controller(
+        trace_logger: TraceLogger,
+        reflection_engine: Optional[ReflectionEngine] = None,
+        config: Optional[MetaConfig] = None,
+    ) -> MetaController:
+        return MetaController(
+            trace_logger=trace_logger,
+            reflection_engine=reflection_engine,
+            config=config,
+        )
 
 # ---------------------------------------------------------
 # Main brain builder

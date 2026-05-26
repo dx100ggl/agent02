@@ -1,5 +1,6 @@
 # brain/c2/orchestrator.py
 
+from typing import Optional
 
 from brain.c1.state import State
 from brain.c2.planner.adaptive_planner import AdaptivePlanner
@@ -15,6 +16,7 @@ from brain.c5.integration.c3_hooks import apply_memory_updates
 from brain.c5.integration.c4_hooks import apply_skill_metadata_updates
 from brain.c5.trace_logger import TraceLogger
 
+from brain.c6 import MetaController  # NEW
 
 MAX_STEPS = 5
 
@@ -34,7 +36,15 @@ class Orchestrator:
     - Set state.done = True on any termination.
     """
 
-    def __init__(self, router=None, planner=None, executor=None, tools=None, memory=None):
+    def __init__(
+        self,
+        router=None,
+        planner=None,
+        executor=None,
+        tools=None,
+        memory=None,
+        meta_controller: Optional[MetaController] = None,  # NEW, optional
+    ):
         self.state = State()
 
         # C3 / C4
@@ -49,6 +59,10 @@ class Orchestrator:
         # C5
         self.reflection = ReflectionEngineV1()
 
+        # C6 (optional)
+        self.meta_controller = meta_controller
+
+    
     def run(self, state):
         self.state = state
 
@@ -158,6 +172,32 @@ class Orchestrator:
         apply_memory_updates(self.memory, reflection_output.memory_updates)
         apply_skill_metadata_updates(self.tools, reflection_output.directives)
         TraceLogger.log_final(state, final_output)
+
+        # --- 8b. Meta-cognition (C6, optional) ---
+        if self.meta_controller is not None:
+            from brain.c6.meta_types import MetaSignal
+
+            trace_log = getattr(state, "trace_log", [])
+
+            signal = MetaSignal(
+                user_input=state.user_input,
+                planner_trace=planner_trace,
+                executor_trace=executor_trace,
+                final_output=final_output,
+                error=error,
+                trace_log=trace_log,
+                context={"phase": "post_execution"},
+            )
+
+            meta_decision = self.meta_controller.observe_cycle(signal)
+
+            # For Option C, we only *log* the decision for now.
+            # Behavioural hooks can be added later without breaking tests.
+            TraceLogger.log(
+                state,
+                f"[meta] decision={meta_decision}",
+            )
+
 
         # --- 9. Return final output ---
         return final_output

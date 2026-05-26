@@ -110,10 +110,17 @@ class Orchestrator:
                 error = result
                 break
 
-            # Single-step plan => treat as final
+            # Single-step plan is NOT final if the step is a memory search.
+            # Allow planner to schedule follow-up LLM step.
             if len(plan) == 1:
-                state.done = True
-                break
+                step = plan[0]
+                if step.get("action") == "use_tool" and step.get("tool") == "search_memory":
+                    # Do NOT terminate — allow next iteration
+                    pass
+                else:
+                    state.done = True
+                    break
+
 
             # Max depth guard
             if steps >= MAX_STEPS:

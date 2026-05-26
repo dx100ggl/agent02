@@ -76,4 +76,18 @@ class Executor:
             "memory_context": memory_context,
         }
 
-        return llm_tool.run(prompt_payload)
+        raw = llm_tool.run(prompt_payload)
+
+        # Normalize LLM output into Brain-24 standard shape
+        text = None
+        if isinstance(raw, dict):
+            text = raw.get("text") or raw.get("output") or raw.get("response")
+        else:
+            text = str(raw)
+
+        return {
+            "final": False,
+            "llm_output": raw,
+            "text": text,
+        }
+

@@ -219,3 +219,6 @@ Based of the left over stage on 23/05/26,
    6. Add C4 memory writing tool
    7. Add an LLM‑based intent classifie `brain/c2/planner/intent_classifier.py`
    8. 
+
+## [Brain-24 C5 Store/Retrieve memories](https://copilot.microsoft.com/shares/pages/VeZTsPeQm1AAEpEvpkymd).
+Get it working, git commit

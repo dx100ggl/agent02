@@ -31,9 +31,9 @@ class AdaptivePlanner(Planner):
         last = state.history[-1] if state.history else None
 
         # ---------------------------------------------------------
-        # 0. Intent classification (only if llm_callable provided)
+        # 0. Intent classification (only on FIRST iteration)
         # ---------------------------------------------------------
-        if self.llm and self.intent_classifier:
+        if self.llm and self.intent_classifier and not state.history:
             intent = self.intent_classifier.classify(self.llm, state.user_input)
 
             if intent == "write_memory":
@@ -89,10 +89,13 @@ class AdaptivePlanner(Planner):
         # 2.5 Option B: After memory search → follow up with LLM
         # ---------------------------------------------------------
         if last and last.get("step", {}).get("tool") == "search_memory" and not last.get("error"):
-            # Optionally, you could also check that there *are* results:
-            # result = last.get("result", {})
-            # if result.get("results"):
-            #     ...
+
+            # Results may be stored either directly or under "result"
+            results = last.get("results")
+            if results is None and isinstance(last.get("result"), dict):
+                results = last["result"].get("results")
+
+            # Whether results exist or not, we now follow up with LLM
             return [{
                 "action": "llm",
                 "prompt": state.user_input,

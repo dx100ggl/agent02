@@ -1,3 +1,5 @@
+# brain/c5/trace_pretty.py
+
 import sys
 from typing import Iterable
 

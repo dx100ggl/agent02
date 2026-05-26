@@ -221,4 +221,7 @@ Based of the left over stage on 23/05/26,
    8. 
 
 ## [Brain-24 C5 Store/Retrieve memories](https://copilot.microsoft.com/shares/pages/VeZTsPeQm1AAEpEvpkymd).
-Get it working, git commit
+Get it working, git commit C5. milestone: store/retrieve memories. Working!
+
+## [Brain-24 C6 Overview (md file)](https://copilot.microsoft.com/shares/pages/WmxNV1waxFh5Sa5USRKjd)
+

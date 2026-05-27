@@ -15,6 +15,9 @@ from brain.llm.lmstudio_llm import LMStudioLLM
 from brain.c5.reflection_engine import ReflectionEngine
 from brain.c5.trace_logger import TraceLogger
 
+from brain.c2.skill_learning.skill_store import SkillStore
+from brain.c2.skill_learning.skill_learner import SkillLearner
+from brain.c2.skill_learning.skill_router import SkillRouter
 
 
 # ---------------------------------------------------------
@@ -49,16 +52,40 @@ def build_planner(llm_callable):
     """
     return AdaptivePlanner(llm_callable=llm_callable)
 
+
 def build_meta_controller(
         trace_logger: TraceLogger,
         reflection_engine: Optional[ReflectionEngine] = None,
         config: Optional[MetaConfig] = None,
     ) -> MetaController:
-        return MetaController(
-            trace_logger=trace_logger,
-            reflection_engine=reflection_engine,
-            config=config,
-        )
+    return MetaController(
+        trace_logger=trace_logger,
+        reflection_engine=reflection_engine,
+        config=config,
+    )
+
+
+def build_skill_store(memory) -> SkillStore:
+    """
+    C7 SkillStore: thin adapter over C3 MemoryStore.
+    """
+    return SkillStore(memory)
+
+
+def build_skill_learner(memory) -> SkillLearner:
+    """
+    C7 SkillLearner: detect + generalize + persist skills from traces.
+    """
+    return SkillLearner(memory)
+
+
+def build_skill_router(memory, planner) -> SkillRouter:
+    """
+    C7 SkillRouter: routes tasks via learned skills before falling back to planner.
+    """
+    store = build_skill_store(memory)
+    return SkillRouter(store=store, planner=planner)
+
 
 # ---------------------------------------------------------
 # Main brain builder
@@ -98,14 +125,25 @@ def build_brain(use_lmstudio: bool = False):
     if use_lmstudio:
         tools.default_llm = "lmstudio_llm"
 
+    # --- C7 Skill Learning (Ch7) ---
+
+    skill_learner = build_skill_learner(memory)
+    skill_router = build_skill_router(memory, planner)
+
     # --- C2.5 Orchestrator ---
-    return Orchestrator(
+    orchestrator = Orchestrator(
         router=router,
         planner=planner,
         executor=executor,
         tools=tools,
         memory=memory,
     )
+
+    # Non-breaking: attach Ch7 components as attributes
+    orchestrator.skill_learner = skill_learner
+    orchestrator.skill_router = skill_router
+
+    return orchestrator
 
 
 # ---------------------------------------------------------

@@ -1,3 +1,5 @@
+# brain/c2/orchestrator.py
+
 from typing import Optional, List, Dict, Any
 
 from brain.c1.state import State
@@ -50,7 +52,6 @@ class Orchestrator:
             self.tools.register("llm", DefaultLLM())
             self.tools.default_llm = "llm"
 
-
         self.planner = planner if planner is not None else AdaptivePlanner(tools=self.tools)
         self.router = router if router is not None else DynamicRouter()
         self.executor = executor if executor is not None else Executor(
@@ -65,6 +66,12 @@ class Orchestrator:
         self.reflection = ReflectionEngineV1()
         self.meta_controller = meta_controller if meta_controller is not None else MetaController()
 
+        # ---------------------------------------------------------
+        # C7 Skill Learning (injected by build.py)
+        # ---------------------------------------------------------
+        self.skill_router = getattr(self, "skill_router", None)
+        self.skill_learner = getattr(self, "skill_learner", None)
+
     def run(self, state: State):
         self.state = state
 
@@ -72,6 +79,19 @@ class Orchestrator:
         executor_trace: List[Dict[str, Any]] = []
         final_output: Any = None
         error: Optional[Dict[str, Any]] = None
+
+        # 0. C7 Skill Routing (pre‑planning)
+        # ---------------------------------------------------------
+        if self.skill_router is not None:
+            skill_result = self.skill_router.route(state.user_input)
+            if skill_result is not None:
+                # Skill executed successfully — return immediately
+                state.history.append({
+                    "skill_routed": True,
+                    "final_output": skill_result,
+                })
+                state.done = True
+                return skill_result
 
         # 1. Memory retrieval
         memory_results = self.memory.search(state.user_input)
@@ -126,6 +146,46 @@ class Orchestrator:
             }
         )
         state.done = True
+
+        # ---------------------------------------------------------
+        # 7.5 C7 Skill Learning (post‑execution)
+        # ---------------------------------------------------------
+        if self.skill_learner is not None:
+            from brain.c2.skill_learning.skill_trace import SkillTrace, TraceStep
+
+            def _step_action(s):
+                # Prefer explicit action if present
+                if hasattr(s, "action"):
+                    return s.action
+                # Fallbacks for typical PlanStep shapes
+                if hasattr(s, "tool_name"):
+                    return s.tool_name
+                if hasattr(s, "name"):
+                    return s.name
+                # Last resort: class name
+                return s.__class__.__name__
+
+            def _step_params(s):
+                if hasattr(s, "params"):
+                    return s.params
+                if hasattr(s, "tool_args"):
+                    return s.tool_args
+                return {}
+
+            trace = SkillTrace(
+                task_id=state.task_id,
+                steps=[
+                    TraceStep(
+                        action=_step_action(step),
+                        params=_step_params(step),
+                        result=None,  # results not needed for learning
+                    )
+                    for step in plan.steps
+                ],
+            )
+
+            # Let the learner observe this trace (may or may not yield a skill)
+            self.skill_learner.learn_from_traces([trace])
 
         # 8. Reflection
         from brain.c5.reflection_types import ReflectionInput

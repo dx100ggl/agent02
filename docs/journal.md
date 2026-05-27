@@ -300,3 +300,4 @@ Brain‑24
 # 27/05/26
 
 - [Brain-24 Ch7 overview, mainly docs](https://copilot.microsoft.com/shares/pages/FHmjWpmHddywzCoPBxbW8)
+- [Brain-24 Ch7 Full Implementation](https://copilot.microsoft.com/shares/pages/9HzULX5g85vGarDKQ87ng)

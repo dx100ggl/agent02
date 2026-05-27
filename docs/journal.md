@@ -244,7 +244,7 @@ Get it working, git commit C5. milestone: store/retrieve memories. Working!
 | C-Layer | Cog-Function | Details |
 | --- | --- | --- |
 | **C1** | Immediate Cognition | - Reflexive<br> - fast<br> - single‑turn reasoning<br> - Planner<br> - executor<br> - router<br> - orchestrator |
-| **C2** | Meta‑Cognition | - Supervises C1.<br> - Evaluates, corrects, modulates planning and execution.|
+| **C2** | Meta‑Cognition | - Supervises C1.<br> - Evaluates, corrects,<br> - modulates planning and execution.|
 | **C3** | Self‑Directed Cognition | Goal‑setting, memory‑driven behavior, long‑term coherence. |
 | **C4** | Tool‑Augmented Cognition | tools + memory + synthesis. |
 | **C5** | Reflective Cognition |Heuristics, self‑correction, hallucination detection, efficiency rules.|
@@ -258,8 +258,8 @@ Get it working, git commit C5. milestone: store/retrieve memories. Working!
 | **Ch3** | building self‑direction | |
 | **Ch4** | building tool‑use | |
 | **Ch5** | building reflection | |
-| **Ch6** | **Metacognitive Regulations:** | At C2 level<br> - planning<br>- monitoring<br>- Evaluating|
-| **Ch7** | **Skill Learning**  | Let system<br> - refine tool schema<br> - learn new skills<br> - adapt over time |
+| **Ch6** | **Metacognitive Regulations:**<br> Evole C2 | - planning<br>- monitoring<br>- Evaluating|
+| **Ch7** | **Skill Learning** <br>- adds skill learning to C2<br>- Stores learned skills in the memory organ  | Let system<br> - refine tool schema<br> - learn new skills<br> - adapt over time |
 | **Ch8** | **Multi-Agent Coordination** | Planner + executor + critic + router <br> as separate agents with shared memory.|
 | **Ch9** | **Long‑Horizon Task Decomposition** | - Hierarchical planning,<br> - subgoals,<br> - and multi‑turn task graphs.
 ----
@@ -271,3 +271,32 @@ Ch7 - 9. Or we can tighten what you have now
 - visualization, or even a REPL for the whole brain.
 
 
+```
+Brain‑24
+ ├── Cortex
+ │    ├── C1
+ │    ├── C2  ← you have zoomed‑in poster
+ │    ├── C3
+ │    ├── C4
+ │    └── C5  ← you have zoomed‑in poster
+ │
+ ├── Organs
+ │    ├── Memory Organ
+ │    │     ├── Episodic  ← you have
+ │    │     ├── Semantic  ← you have
+ │    │     ├── Procedural  ← you have
+ │    │     └── Consolidation Engine  ← you have
+ │    │
+ │    └── Skills Organ
+ │          ├── Skills Organ  ← you have
+ │          └── Skill Evaluation  ← you have
+ │
+ └── Cross‑Organ Systems
+       ├── C2 ↔ Skills ↔ Memory  ← you have
+       ├── Memory ↔ Skills ↔ C2 ↔ Consolidation  ← you have
+       └── Learning Stack (C2 ↔ Skills ↔ Memory ↔ Consolidation ↔ C5)  ← you have
+```
+
+# 27/05/26
+
+- [Brain-24 Ch7 overview, mainly docs](https://copilot.microsoft.com/shares/pages/FHmjWpmHddywzCoPBxbW8)

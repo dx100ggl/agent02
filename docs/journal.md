@@ -258,21 +258,14 @@ Get it working, git commit C5. milestone: store/retrieve memories. Working!
 | **Ch3** | building self‑direction | |
 | **Ch4** | building tool‑use | |
 | **Ch5** | building reflection | |
-| **Ch6** | upgrading C2 to control planning | |
-| **Ch5** | upgrading C2 to evaluate planning | |
+| **Ch6** | **Metacognitive Regulations:** | At C2 level<br> - planning<br>- monitoring<br>- Evaluating|
+| **Ch7** | **Skill Learning**  | Let system<br> - refine tool schema<br> - learn new skills<br> - adapt over time |
+| **Ch8** | **Multi-Agent Coordination** | Planner + executor + critic + router <br> as separate agents with shared memory.|
+| **Ch9** | **Long‑Horizon Task Decomposition** | - Hierarchical planning,<br> - subgoals,<br> - and multi‑turn task graphs.
+----
 
 ## To do:
-### C7 — Skill Learning
-Let the system refine tool schemas, learn new skills, and adapt over time.
-
-### C8 — Multi‑Agent Coordination
-Planner + executor + critic + router as separate agents with shared memory.
-
-### C9 — Long‑Horizon Task Decomposition
-Hierarchical planning, subgoals, and multi‑turn task graphs.
-
-### Or we can tighten what you have now 
-
+Ch7 - 9. Or we can tighten what you have now 
 - performance, 
 - clarity, 
 - visualization, or even a REPL for the whole brain.

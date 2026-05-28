@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 from typing import List, Dict, Any, Optional
-from datetime import datetime
+from datetime import datetime, timezone
 
 
 # =========================================================
@@ -37,7 +37,7 @@ class PlanStep:
     action: Optional[str] = None
     params: Optional[Dict[str, Any]] = None
     index: Optional[int] = None
-    timestamp: str = field(default_factory=lambda: datetime.utcnow().isoformat())
+    timestamp: str = field(default_factory=lambda: datetime.now(timezone.utc).isoformat())
 
     # -----------------------------------------------------
     # S4: canonicalize step for skill replay

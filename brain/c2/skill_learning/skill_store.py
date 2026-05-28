@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import json
 from typing import Dict, Optional
-
+from typing import List
 from brain.c3.memory.base import MemoryProvider, MemoryQuery
 from brain.c2.skill_learning.skill_types import SkillRecord
 
@@ -79,3 +79,22 @@ class SkillStore:
             return self._deserialize(text)
         except Exception:
             return None
+
+    def search(self, query: str, top_k: int = 5) -> List[SkillRecord]:
+        """
+        Embedding-based search over skills using C3 memory.
+        """
+        mq = MemoryQuery(
+            query=query,
+            top_k=top_k,
+            metadata_filter={"type": "skill"},
+        )
+        results = self._memory.search(mq)
+
+        skills: List[SkillRecord] = []
+        for r in results:
+            try:
+                skills.append(self._deserialize(r.record.content))
+            except Exception:
+                continue
+        return skills

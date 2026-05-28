@@ -19,23 +19,27 @@ class SkillRetriever:
 
     def find_matching_skill(self, task_description: str) -> Optional[SkillRecord]:
         """
-        Matching strategy:
-        - primary: if the full skill description is a substring of the task description
-        - fallback: if both contain 'auto-learned' (for Ch7 tests and simple prompts)
+        Matching strategy (S4):
+        1) Use embedding-based search via SkillStore.search
+        2) Fallback to description/name substring heuristics
         """
-        skills = self._store.load_all()
         td = task_description.lower()
 
+        # 1) Embedding-based search
+        candidates = self._store.search(task_description, top_k=5)
+        if candidates:
+            return candidates[0]
+
+        # 2) Heuristic fallback over all skills
+        skills = self._store.load_all()
         for record in skills.values():
             desc = (record.signature.description or "").lower()
-            if not desc:
-                continue
+            name = (record.signature.name or "").lower()
 
-            # Primary: strict substring
-            if desc in td:
+            if desc and desc in td:
                 return record
-
-            # Fallback: both mention 'auto-learned'
+            if name and name in td:
+                return record
             if "auto-learned" in desc and "auto-learned" in td:
                 return record
 

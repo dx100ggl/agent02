@@ -1,14 +1,19 @@
 from brain.c1.planner.adaptive_planner import AdaptivePlanner
 from brain.c4.tools.registry import ToolRegistry
-from brain.c3.memory.store import MemoryItem
+
+
+class DummyMemoryItem:
+    def __init__(self, text: str):
+        self.text = text
+
 
 def test_memory_guided_planning():
     planner = AdaptivePlanner(tools=ToolRegistry())
     directive = type("D", (), {"mode": type("M", (), {"value": "normal"}), "schema": "llm"})
 
     memory_results = [
-        MemoryItem(text="instruction: always be polite"),
-        MemoryItem(text="past conversation about cats"),
+        DummyMemoryItem(text="instruction: always be polite"),
+        DummyMemoryItem(text="past conversation about cats"),
     ]
 
     plan = planner.create_plan("hello", directive, memory_results=memory_results)

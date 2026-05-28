@@ -2,11 +2,10 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass, replace
+from dataclasses import replace
 from typing import Any, Dict, List, Optional
 
-# S4 core imports (renamed to avoid clashing with legacy MemoryStore)
-from .base import MemoryRecord, MemorySearchResult, MemoryStore as BaseMemoryStore
+from .base import MemoryRecord, MemorySearchResult, MemoryStore
 
 
 def _cosine_similarity(a: List[float], b: List[float]) -> float:
@@ -20,7 +19,7 @@ def _cosine_similarity(a: List[float], b: List[float]) -> float:
     return dot / (norm_a * norm_b)
 
 
-class InMemoryStore(BaseMemoryStore):
+class InMemoryStore(MemoryStore):
     """
     Simple in-process vector store.
     Good enough for S4; can be swapped for a persistent backend later.
@@ -69,45 +68,4 @@ class InMemoryStore(BaseMemoryStore):
         return replace(record) if record is not None else None
 
     def stats(self) -> Dict[str, Any]:
-        return {
-            "count": len(self._records),
-        }
-
-
-# --------------------------------------------------------------------
-# Legacy compatibility layer for existing tests
-# --------------------------------------------------------------------
-
-@dataclass
-class MemoryItem:
-    """
-    Legacy memory item used by older tests.
-
-    Minimal surface:
-    - text: str
-    - tags: optional list of strings
-    """
-    text: str
-    tags: Optional[List[str]] = None
-
-
-class MemoryStore:
-    """
-    Legacy, text-only MemoryStore used by old tests.
-
-    API expected by tests/test_c3_memory_store.py:
-        m = MemoryStore()
-        m.add("cats are cute", tags=["animal"])
-        results = m.search("cats")
-        results[0].text -> "cats are cute"
-    """
-
-    def __init__(self) -> None:
-        self._items: List[MemoryItem] = []
-
-    def add(self, text: str, tags: Optional[List[str]] = None) -> None:
-        self._items.append(MemoryItem(text=text, tags=tags))
-
-    def search(self, query: str) -> List[MemoryItem]:
-        q = query.lower()
-        return [item for item in self._items if q in item.text.lower()]
+        return {"count": len(self._records)}

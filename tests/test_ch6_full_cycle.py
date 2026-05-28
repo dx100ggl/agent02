@@ -1,7 +1,7 @@
 from brain.c2.orchestrator import Orchestrator
 from brain.c1.state import State
 
-def test_full_c6_cycle():
+def test_full_ch6_cycle():
     o = Orchestrator()
     s = State(user_input="hello world")
     s.debug_visualize_plan = True

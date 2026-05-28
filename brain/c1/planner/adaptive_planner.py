@@ -1,3 +1,5 @@
+# brain/c1/planner/adaptive_planner.py
+
 from typing import Dict, Any, Optional
 from brain.c1.planner.plan import Plan
 from brain.c1.planner.tool_schema import ToolSchema
@@ -7,15 +9,15 @@ class AdaptivePlanner:
     """
     Memory‑guided, tool‑aware planner.
 
-    Uses:
-    - tool schemas (L)
-    - memory search results (M)
-    - reflection preferences (J)
-    - meta‑controller preferences (N)
+    Backward compatible with:
+        AdaptivePlanner()
+    Forward compatible with:
+        AdaptivePlanner(llm_callable=...)
     """
 
-    def __init__(self, tools=None):
+    def __init__(self, tools=None, llm_callable=None):
         self.tools = tools
+        self.llm_callable = llm_callable  # <-- NEW but optional
         self.meta_mode = "default"
         self.flags = {}
         self.preferences = {}
@@ -60,7 +62,14 @@ class AdaptivePlanner:
     # Memory‑guided context
     # ---------------------------------------------------------
     def _inject_memory_context(self, plan: Plan, memory_results):
-        snippets = [item.text for item in memory_results[:5]]
+        # Legacy MemoryItem support
+        snippets = []
+        for item in memory_results[:5]:
+            if hasattr(item, "text"):
+                snippets.append(item.text)
+            elif hasattr(item, "record"):
+                snippets.append(item.record.content)
+
         plan.meta["memory_context"] = snippets
 
         if any("instruction" in s.lower() for s in snippets):

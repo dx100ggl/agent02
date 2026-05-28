@@ -22,12 +22,13 @@ class SkillGeneralizer:
             raise ValueError("Cannot generalize from empty trace list")
 
         example = traces[0]
+        task_id = example.task_id
 
         signature = SkillSignature(
-            name=f"skill_{example.task_id}",
+            name=f"skill_{task_id}",
             inputs=list(example.steps[0].params.keys()) if example.steps else [],
             outputs=["result"],
-            description="Auto-learned skill",
+            description=f"Auto-learned skill for {task_id}",
         )
 
         policy = example.to_policy()

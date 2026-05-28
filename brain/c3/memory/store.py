@@ -1,69 +1,113 @@
 # brain/c3/memory/store.py
 
-from dataclasses import dataclass
-from typing import Any, Dict, List
+from __future__ import annotations
 
+from dataclasses import dataclass, replace
+from typing import Any, Dict, List, Optional
+
+# S4 core imports (renamed to avoid clashing with legacy MemoryStore)
+from .base import MemoryRecord, MemorySearchResult, MemoryStore as BaseMemoryStore
+
+
+def _cosine_similarity(a: List[float], b: List[float]) -> float:
+    if not a or not b or len(a) != len(b):
+        return 0.0
+    dot = sum(x * y for x, y in zip(a, b))
+    norm_a = sum(x * x for x in a) ** 0.5
+    norm_b = sum(y * y for y in b) ** 0.5
+    if norm_a == 0.0 or norm_b == 0.0:
+        return 0.0
+    return dot / (norm_a * norm_b)
+
+
+class InMemoryStore(BaseMemoryStore):
+    """
+    Simple in-process vector store.
+    Good enough for S4; can be swapped for a persistent backend later.
+    """
+
+    def __init__(self) -> None:
+        self._records: Dict[str, MemoryRecord] = {}
+
+    def add(self, record: MemoryRecord) -> None:
+        self._records[record.id] = record
+
+    def add_many(self, records: List[MemoryRecord]) -> None:
+        for r in records:
+            self.add(r)
+
+    def search(
+        self,
+        query_embedding: List[float],
+        top_k: int = 5,
+        metadata_filter: Optional[Dict[str, Any]] = None,
+    ) -> List[MemorySearchResult]:
+        results: List[MemorySearchResult] = []
+
+        for record in self._records.values():
+            if metadata_filter:
+                if not all(record.metadata.get(k) == v for k, v in metadata_filter.items()):
+                    continue
+
+            if record.embedding is None:
+                continue
+
+            score = _cosine_similarity(query_embedding, record.embedding)
+            if score <= 0.0:
+                continue
+
+            results.append(MemorySearchResult(record=record, score=score))
+
+        results.sort(key=lambda r: r.score, reverse=True)
+        return results[:top_k]
+
+    def delete(self, record_id: str) -> None:
+        self._records.pop(record_id, None)
+
+    def get(self, record_id: str) -> Optional[MemoryRecord]:
+        record = self._records.get(record_id)
+        return replace(record) if record is not None else None
+
+    def stats(self) -> Dict[str, Any]:
+        return {
+            "count": len(self._records),
+        }
+
+
+# --------------------------------------------------------------------
+# Legacy compatibility layer for existing tests
+# --------------------------------------------------------------------
 
 @dataclass
 class MemoryItem:
     """
-    Unified MemoryItem supporting:
-    - Legacy C1/C3 API: MemoryItem(text="...", tags=[...])
-    - C3/C7 API: MemoryItem(key, value)
+    Legacy memory item used by older tests.
+
+    Minimal surface:
+    - text: str
+    - tags: optional list of strings
     """
-    key: str
-    value: Any
-    tags: list[str] = None
-
-    def __init__(self, key=None, value=None, text=None, tags=None):
-        if text is not None:
-            self.key = text
-            self.value = text
-            self.tags = tags or []
-            return
-
-        self.key = key
-        self.value = value
-        self.tags = tags or []
-
-    @property
-    def text(self) -> str:
-        return str(self.value)
+    text: str
+    tags: Optional[List[str]] = None
 
 
 class MemoryStore:
     """
-    Simple in-memory key-value store.
-    Compatible with C1, C3, C4, C5, C7.
+    Legacy, text-only MemoryStore used by old tests.
+
+    API expected by tests/test_c3_memory_store.py:
+        m = MemoryStore()
+        m.add("cats are cute", tags=["animal"])
+        results = m.search("cats")
+        results[0].text -> "cats are cute"
     """
 
-    def __init__(self):
-        self._store: Dict[str, Any] = {}
+    def __init__(self) -> None:
+        self._items: List[MemoryItem] = []
 
-    def put(self, key: str, value: Any):
-        self._store[key] = value
-
-    def get(self, key: str):
-        return self._store.get(key)
-
-    # NEW: read wrapper for SkillStore
-    def read(self, key: str):
-        return self.get(key)
-
-    def scan(self, prefix: str) -> Dict[str, Any]:
-        return {k: v for k, v in self._store.items() if k.startswith(prefix)}
+    def add(self, text: str, tags: Optional[List[str]] = None) -> None:
+        self._items.append(MemoryItem(text=text, tags=tags))
 
     def search(self, query: str) -> List[MemoryItem]:
         q = query.lower()
-        results = []
-        for k, v in self._store.items():
-            if q in k.lower() or q in str(v).lower():
-                results.append(MemoryItem(key=k, value=v))
-        return results
-
-    def add(self, text: str, tags=None):
-        item = MemoryItem(text=text, tags=tags)
-        self.put(item.key, item.value)
-
-    def write(self, key: str, value: Any):
-        self.put(key, value)
+        return [item for item in self._items if q in item.text.lower()]

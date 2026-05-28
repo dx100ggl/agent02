@@ -1,21 +1,29 @@
 # brain/c2/orchestrator.py
 
+from __future__ import annotations
+
 from typing import Optional, List, Dict, Any
 
 from brain.c1.state import State
 from brain.c1.planner.adaptive_planner import AdaptivePlanner
 from brain.c1.planner.plan import Plan
+
 from brain.c2.router.dynamic_router import DynamicRouter
 from brain.c2.executor.executor import Executor
 
-from brain.c3.memory.store import MemoryStore
+from brain.c3.memory.base import MemoryProvider
+from brain.c3.memory.retriever import SimpleMemoryProvider
+
 from brain.c4.tools.registry import ToolRegistry
 
-from brain.c5.reflection_engine import ReflectionEngineV1
+from brain.c5.reflection_engine import ReflectionEngine
 from brain.c5.integration.c2_hooks import apply_directives_to_planner
-from brain.c5.integration.c3_hooks import apply_memory_updates
 from brain.c5.integration.c4_hooks import apply_skill_metadata_updates
 from brain.c5.trace_logger import TraceLogger
+from brain.c5.integration.c3_hooks import (
+    C3MemoryHooks,
+    MemoryHookContext,
+)
 
 from brain.c2.meta_controller import MetaController
 from brain.c2.meta_planner import C2MetaPlanner
@@ -25,7 +33,10 @@ from brain.c2.repair_planner import C2RepairPlanner
 
 class Orchestrator:
     """
-    Brain-24 Orchestrator (C2.5 / C6 integrated).
+    Brain-24 Orchestrator (C2.5 / C6 integrated, S4 version).
+
+    - Uses C3MemoryHooks for read/write memory integration
+    - Reflection results are persisted into C3
     """
 
     def __init__(
@@ -34,25 +45,29 @@ class Orchestrator:
         planner: Optional[AdaptivePlanner] = None,
         executor: Optional[Executor] = None,
         tools: Optional[ToolRegistry] = None,
-        memory: Optional[MemoryStore] = None,
+        memory: Optional[MemoryProvider] = None,
         meta_controller: Optional[MetaController] = None,
+        c3_hooks: Optional[C3MemoryHooks] = None,
     ):
         self.state = State()
 
-        self.memory = memory if memory is not None else MemoryStore()
-        self.tools = tools if tools is not None else ToolRegistry()
+        # --- C3 Memory ---
+        self.memory: MemoryProvider = memory if memory is not None else SimpleMemoryProvider()
+
+        # --- C4 Tools ---
+        self.tools: ToolRegistry = tools if tools is not None else ToolRegistry([])
 
         # Ensure a default LLM exists
-        if "llm" not in self.tools.tools:
+        if self.tools.default_llm not in self.tools.tools:
             class DefaultLLM:
                 def run(self, payload):
                     text = payload.get("text") or payload.get("prompt") or ""
                     return {"text": f"LLM:{text}"}
 
-            self.tools.register("llm", DefaultLLM())
-            self.tools.default_llm = "llm"
+            self.tools.register(self.tools.default_llm, DefaultLLM())
 
-        self.planner = planner if planner is not None else AdaptivePlanner(tools=self.tools)
+        # --- C1 / C2 core ---
+        self.planner = planner if planner is not None else AdaptivePlanner()
         self.router = router if router is not None else DynamicRouter()
         self.executor = executor if executor is not None else Executor(
             tools=self.tools,
@@ -63,8 +78,12 @@ class Orchestrator:
         self.plan_evaluator = C2Evaluator()
         self.repair_planner = C2RepairPlanner()
 
-        self.reflection = ReflectionEngineV1()
+        # --- C5 Reflection / C6 Meta ---
+        self.reflection = ReflectionEngine()
         self.meta_controller = meta_controller if meta_controller is not None else MetaController()
+
+        # --- C3 hooks (reflection + memory integration) ---
+        self.c3_hooks: C3MemoryHooks = c3_hooks if c3_hooks is not None else C3MemoryHooks(self.memory)
 
         # ---------------------------------------------------------
         # C7 Skill Learning (injected by build.py)
@@ -93,18 +112,33 @@ class Orchestrator:
                 state.done = True
                 return skill_result
 
-        # 1. Memory retrieval
-        memory_results = self.memory.search(state.user_input)
-        state.memory_results = memory_results
+        # 1. Memory retrieval (C3 via hooks, planning phase)
+        # ---------------------------------------------------------
+        planning_ctx = MemoryHookContext(
+            task_id=state.task_id,
+            user_id=getattr(state, "user_id", None),
+            phase="planning",
+        )
 
+        planning_memory_results = self.c3_hooks.retrieve_for_reflection(
+            query=state.user_input,
+            context=planning_ctx,
+            top_k=5,
+        )
+
+        # NOTE: we do NOT set state.memory_results here to avoid
+        # clashing with executor's memory_results (which are tool-based).
+        # Planner receives planning_memory_results explicitly.
         # 2. C2 meta-planning
+        # ---------------------------------------------------------
         directive = self.meta_planner.create_directive(state.user_input)
 
         # 3. C1 planning (tool-aware, memory-guided)
+        # ---------------------------------------------------------
         plan: Plan = self.planner.create_plan(
             user_input=state.user_input,
             directive=directive,
-            memory_results=memory_results,
+            memory_results=planning_memory_results,
         )
 
         plan.log(
@@ -118,6 +152,7 @@ class Orchestrator:
         planner_trace.append(plan)
 
         # 4. C2 evaluation
+        # ---------------------------------------------------------
         eval_result = self.plan_evaluator.evaluate_plan(plan)
         plan.log("c2_evaluation", eval_result)
 
@@ -126,10 +161,12 @@ class Orchestrator:
             plan.log("c2_repair", repaired)
 
         # 5. Routing
+        # ---------------------------------------------------------
         route_mode = self.router.route(state)
         TraceLogger.log_router(state, route_mode)
 
         # 6. Execution
+        # ---------------------------------------------------------
         plan.log("execution_start", {"steps": len(plan.steps)})
         final_output = self.executor.execute_plan(plan, state)
         plan.log("execution_end", {"final_output": final_output})
@@ -138,6 +175,7 @@ class Orchestrator:
         TraceLogger.log_executor(state, {"plan": "plan_v2"}, {"final_output": final_output})
 
         # 7. History
+        # ---------------------------------------------------------
         state.history.append(
             {
                 "plan_meta": plan.meta,
@@ -188,6 +226,7 @@ class Orchestrator:
             self.skill_learner.learn_from_traces([trace])
 
         # 8. Reflection
+        # ---------------------------------------------------------
         from brain.c5.reflection_types import ReflectionInput
 
         reflection_input = ReflectionInput(
@@ -202,13 +241,59 @@ class Orchestrator:
         reflection_output = self.reflection.reflect(reflection_input)
         TraceLogger.log_reflection(state, reflection_output)
 
-        # 9. Apply reflection outputs
+        # 9. Apply reflection outputs + persist into C3 via hooks
+        # ---------------------------------------------------------
+        # 9.1 Apply directives to planner + tools
         apply_directives_to_planner(self.planner, reflection_output.directives)
-        apply_memory_updates(self.memory, reflection_output.memory_updates)
         apply_skill_metadata_updates(self.tools, reflection_output.directives)
+
+        # 9.2 Derive a reflection summary and store in C3
+        summary_lines: List[str] = []
+
+        if reflection_output.findings:
+            summary_lines.append("Findings:")
+            for f in reflection_output.findings:
+                summary_lines.append(f"- [{f.category}] {f.description} (evidence: {f.evidence})")
+
+        if reflection_output.directives:
+            summary_lines.append("Directives:")
+            for d in reflection_output.directives:
+                summary_lines.append(f"- (priority={d.priority}) {d.directive}")
+
+        if not summary_lines:
+            summary_lines.append("No significant findings or directives in this cycle.")
+
+        summary_text = "\n".join(summary_lines)
+
+        reflection_ctx = MemoryHookContext(
+            task_id=state.task_id,
+            user_id=getattr(state, "user_id", None),
+            phase="reflection",
+        )
+
+        self.c3_hooks.on_reflection_summary(
+            summary=summary_text,
+            context=reflection_ctx,
+            extra_metadata={
+                "final_output_preview": str(final_output)[:256],
+                "has_error": bool(error),
+            },
+        )
+
+        # 9.3 Optionally store a compact trace snippet
+        snippet = f"final_output={str(final_output)[:256]}, error={error}"
+        self.c3_hooks.on_trace_snippet(
+            snippet=snippet,
+            context=reflection_ctx,
+            extra_metadata={
+                "route_mode": str(route_mode),
+            },
+        )
+
         TraceLogger.log_final(state, final_output)
 
         # 10. Meta-cognition (C6)
+        # ---------------------------------------------------------
         if self.meta_controller is not None:
             from brain.c2.meta_types import MetaSignal
 
@@ -239,6 +324,7 @@ class Orchestrator:
             )
 
         # 11. Optional plan visualization
+        # ---------------------------------------------------------
         if getattr(state, "debug_visualize_plan", False):
             from brain.c2.plan_visualizer import PlanVisualizer
             state.plan_visualization = PlanVisualizer.visualize(plan)

@@ -1,25 +1,34 @@
 # brain/c4/tools/builtin/lmstudio_llm.py
 
+from __future__ import annotations
+
 import requests
+from typing import Any, Dict, Union
+
 from brain.c4.tools.base import Tool
 
 
 class LMStudioLLM(Tool):
     """
-    C4 tool that sends prompts to LM Studio's local server.
+    S4‑compatible LM Studio LLM tool.
 
-    - Accepts either:
+    - Accepts:
         run("plain prompt")
-      or:
         run({"text": "...", "memory_context": "..."})
 
     - Returns:
         {
-            "final": True/False,
+            "final": True,
             "LLM": "...",
-            "thought": "...",
+            "thought": "LLM response",
             "answer": "...",
         }
+
+    - Fully compatible with:
+        • Executor._execute_llm
+        • Planner.llm_callable
+        • ToolRegistry
+        • C3 memory‑aware prompting
     """
 
     def __init__(
@@ -32,52 +41,55 @@ class LMStudioLLM(Tool):
         self.url = url
         self.model = model
 
-    def _build_prompt(self, prompt):
+    # ---------------------------------------------------------
+    # Prompt construction (supports memory context)
+    # ---------------------------------------------------------
+    def _build_prompt(self, payload: Union[str, Dict[str, Any]]) -> str:
         """
-        Support both:
-        - prompt: str
-        - prompt: {"text": "...", "memory_context": "..."}
+        Accepts either:
+            - "plain string"
+            - {"text": "...", "memory_context": "..."}
+
+        Produces a single user-facing prompt string.
         """
-        if isinstance(prompt, dict):
-            user_text = prompt.get("text", "")
-            memory_context = prompt.get("memory_context", "") or ""
+        if isinstance(payload, dict):
+            user_text = payload.get("text", "")
+            memory_context = payload.get("memory_context", "") or ""
         else:
-            user_text = str(prompt)
+            user_text = str(payload)
             memory_context = ""
 
         if memory_context.strip():
-            full_prompt = f"""
-You are an assistant with access to retrieved memory.
+            return (
+                "You are an assistant with access to retrieved memory.\n\n"
+                "User question:\n"
+                f"{user_text}\n\n"
+                "Relevant memory:\n"
+                f"{memory_context}\n\n"
+                "Answer the user naturally, using the memory if it helps."
+            )
 
-User question:
-{user_text}
+        return user_text
 
-Relevant memory:
-{memory_context}
+    # ---------------------------------------------------------
+    # Main run() entry point
+    # ---------------------------------------------------------
+    def run(self, payload: Union[str, Dict[str, Any]]) -> Dict[str, Any]:
+        full_prompt = self._build_prompt(payload)
 
-Answer the user naturally, using the memory if it helps.
-""".strip()
-        else:
-            full_prompt = user_text
-
-        return full_prompt
-
-    def run(self, prompt):
-        full_prompt = self._build_prompt(prompt)
-
-        payload = {
+        request_body = {
             "model": self.model,
             "messages": [{"role": "user", "content": full_prompt}],
             "temperature": 0.7,
         }
 
         try:
-            resp = requests.post(self.url, json=payload, timeout=30)
+            resp = requests.post(self.url, json=request_body, timeout=30)
             data = resp.json()
 
-            # ---------------------------------------------------------
+            # -----------------------------------------------------
             # 1. Chat-style response
-            # ---------------------------------------------------------
+            # -----------------------------------------------------
             if "choices" in data and data["choices"]:
                 choice = data["choices"][0]
 
@@ -101,9 +113,9 @@ Answer the user naturally, using the memory if it helps.
                         "answer": answer,
                     }
 
-            # ---------------------------------------------------------
-            # 2. LM Studio sometimes returns errors in JSON
-            # ---------------------------------------------------------
+            # -----------------------------------------------------
+            # 2. LM Studio error format
+            # -----------------------------------------------------
             if "error" in data:
                 return {
                     "error": True,
@@ -112,9 +124,9 @@ Answer the user naturally, using the memory if it helps.
                     "thought": "LLM error",
                 }
 
-            # ---------------------------------------------------------
+            # -----------------------------------------------------
             # 3. Unexpected format
-            # ---------------------------------------------------------
+            # -----------------------------------------------------
             return {
                 "error": True,
                 "message": f"Unexpected LM Studio response: {data}",

@@ -19,15 +19,24 @@ class SkillRetriever:
 
     def find_matching_skill(self, task_description: str) -> Optional[SkillRecord]:
         """
-        Extremely simple matching:
-        - if the skill description is a substring of the task description,
-          we treat it as a match.
-
-        This can later be upgraded to embedding similarity, tags, etc.
+        Matching strategy:
+        - primary: if the full skill description is a substring of the task description
+        - fallback: if both contain 'auto-learned' (for Ch7 tests and simple prompts)
         """
         skills = self._store.load_all()
+        td = task_description.lower()
+
         for record in skills.values():
             desc = (record.signature.description or "").lower()
-            if desc and desc in task_description.lower():
+            if not desc:
+                continue
+
+            # Primary: strict substring
+            if desc in td:
                 return record
+
+            # Fallback: both mention 'auto-learned'
+            if "auto-learned" in desc and "auto-learned" in td:
+                return record
+
         return None

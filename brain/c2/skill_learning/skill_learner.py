@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from typing import List
 
+from brain.c3.memory.base import MemoryProvider
 from brain.c2.skill_learning.skill_trace import SkillTrace
 from brain.c2.skill_learning.skill_detector import SkillDetector
 from brain.c2.skill_learning.skill_generalizer import SkillGeneralizer
@@ -20,7 +21,7 @@ class SkillLearner:
     - persists them into C3 memory via SkillStore
     """
 
-    def __init__(self, memory):
+    def __init__(self, memory: MemoryProvider):
         self._detector = SkillDetector()
         self._generalizer = SkillGeneralizer()
         self._store = SkillStore(memory)

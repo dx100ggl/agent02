@@ -1,43 +1,46 @@
 # brain/c4/tools/registry.py
 
-from typing import Dict, Any, Optional
+from __future__ import annotations
+from typing import Dict, Iterable, Optional, Any
 from brain.c1.planner.tool_schema import ToolSchema
 
 
 class ToolRegistry:
     """
-    Registry for all tools available to the agent.
-    Memory-aware and provides a default LLM tool.
+    S4 ToolRegistry with full backward compatibility.
+
+    Supports BOTH:
+        ToolRegistry()
+        ToolRegistry([tool1, tool2])
     """
 
-    def __init__(self, memory=None):
-        self.memory = memory
-        self.tools: Dict[str, Any] = {}
+    def __init__(self, tools: Optional[Iterable[Any]] = None):
+        tools = tools or []  # <-- legacy compatibility
+        self.tools: Dict[str, Any] = {t.name: t for t in tools}
         self.schemas: Dict[str, ToolSchema] = {}
-        self.default_llm = "llm"
 
-        # Register memory tools if memory is provided
-        if memory is not None:
-            self.register("write_memory", memory.write)
-            self.register("search_memory", memory.search)
+        # Default LLM tool name
+        self.default_llm = "lmstudio_llm"
 
-        # Provide a default lmstudio_llm tool so build_brain() never fails
-        class DummyLMStudioLLM:
-            def run(self, prompt):
-                return {"answer": f"dummy:{prompt}"}
-
-        self.register("lmstudio_llm", DummyLMStudioLLM())
-
+    # -----------------------------------------------------
+    # Registration API
+    # -----------------------------------------------------
     def register(self, name: str, tool: Any, schema: Optional[ToolSchema] = None):
         self.tools[name] = tool
         if schema:
             self.schemas[name] = schema
 
-    def get(self, name: str):
+    # -----------------------------------------------------
+    # Lookup API
+    # -----------------------------------------------------
+    def get(self, name: str) -> Any:
         return self.tools[name]
 
     def get_schema(self, name: str) -> Optional[ToolSchema]:
         return self.schemas.get(name)
 
-    def list_schemas(self):
-        return self.schemas
+    def list_schemas(self) -> Dict[str, ToolSchema]:
+        return dict(self.schemas)
+
+    def list_tools(self) -> Dict[str, Any]:
+        return dict(self.tools)

@@ -2,12 +2,12 @@
 
 # Define the list of filenames
 files=(
-    "brain/c1/planner/plan.py"
-    "brain/c2/orchestrator.py"
-    "brain/c2/executor/executor.py"
-    "brain/c5/reflection_types.py"
-    "brain/c5/reflection_engine.py"
-    "brain/c5/integration/c2_hooks.py"
+    "brain/c3/memory/store.py"
+    "brain/c3/memory/base.py"
+    "brain/c3/memory/retriever.py"
+    "brain/c3/memory/__init__.py"
+    "tests/test_c3_memory_store.py"
+    "tests/test_c1_memory_guided_planner.py"
 )
 
 # Loop through each filename in the list

@@ -2,42 +2,80 @@
 
 from __future__ import annotations
 
+import json
 from typing import Dict, Optional
 
+from brain.c3.memory.base import MemoryProvider, MemoryQuery
 from brain.c2.skill_learning.skill_types import SkillRecord
 
 
 class SkillStore:
     """
-    Thin adapter over the existing C3 MemoryStore.
-    Expects a memory object with:
-    - write(key: str, value: Any) -> None
-    - read(key: str) -> Any | None
-    - scan(prefix: str) -> Dict[str, Any]
+    S4 SkillStore:
+    - Stores SkillRecord objects in C3 memory as JSON strings
+    - Retrieves them by metadata filters
     """
 
-    def __init__(self, memory):
+    def __init__(self, memory: MemoryProvider):
         self._memory = memory
 
-    def _key_for_record(self, record: SkillRecord) -> str:
-        return f"skill::{record.signature.name}::v{record.version}"
+    def _metadata_for_record(self, record: SkillRecord) -> Dict[str, str]:
+        return {
+            "type": "skill",
+            "name": record.signature.name,
+            "version": str(record.version),
+        }
 
-    def _key_for_name(self, name: str) -> str:
-        # Latest version lookup can be implemented later; for now assume v1
-        return f"skill::{name}::v1"
+    def _serialize(self, record: SkillRecord) -> str:
+        return json.dumps(record.to_dict())
+
+    def _deserialize(self, text: str) -> SkillRecord:
+        data = json.loads(text)
+        return SkillRecord.from_dict(data)
 
     def save(self, record: SkillRecord) -> None:
-        key = self._key_for_record(record)
-        self._memory.write(key, record)
+        metadata = self._metadata_for_record(record)
+        serialized = self._serialize(record)
+        self._memory.write(content=serialized, metadata=metadata)
 
     def load_all(self) -> Dict[str, SkillRecord]:
-        raw = self._memory.scan(prefix="skill::")
-        # Assume memory returns a dict[str, SkillRecord] or compatible
-        return dict(raw)
+        """
+        Load all skills from C3 memory.
+        Returns a dict keyed by skill name (latest version wins).
+        """
+        mq = MemoryQuery(
+            query="skill",  # non-empty so embedding is non-zero
+            top_k=500,
+            metadata_filter={"type": "skill"},
+        )
+        results = self._memory.search(mq)
+
+        skills: Dict[str, SkillRecord] = {}
+        for r in results:
+            text = r.record.content
+            try:
+                record = self._deserialize(text)
+                skills[record.signature.name] = record
+            except Exception:
+                continue
+
+        return skills
 
     def get(self, name: str) -> Optional[SkillRecord]:
-        key = self._key_for_name(name)
-        value = self._memory.read(key)
-        if isinstance(value, SkillRecord):
-            return value
-        return None
+        mq = MemoryQuery(
+            query=name,
+            top_k=1,
+            metadata_filter={
+                "type": "skill",
+                "name": name,
+            },
+        )
+        results = self._memory.search(mq)
+        if not results:
+            return None
+
+        text = results[0].record.content
+        try:
+            return self._deserialize(text)
+        except Exception:
+            return None

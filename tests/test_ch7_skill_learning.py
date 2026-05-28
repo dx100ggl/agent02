@@ -1,4 +1,4 @@
-# tests/test_c7_skill_learning.py
+# tests/test_ch7_skill_learning.py
 
 import pytest
 
@@ -26,10 +26,10 @@ def make_trace(task_id: str, actions: list[str]):
 
 
 # ---------------------------------------------------------
-# C7-1: SkillStore basic persistence
+# Ch7-1: SkillStore basic persistence
 # ---------------------------------------------------------
 
-def test_c7_skill_store_persistence():
+def test_ch7_skill_store_persistence():
     brain = build_brain()
     memory = brain.memory
 
@@ -52,10 +52,10 @@ def test_c7_skill_store_persistence():
 
 
 # ---------------------------------------------------------
-# C7-2: SkillLearner learns repeated patterns only
+# Ch7-2: SkillLearner learns repeated patterns only
 # ---------------------------------------------------------
 
-def test_c7_skill_learner_detects_repetition():
+def test_ch7_skill_learner_detects_repetition():
     brain = build_brain()
     memory = brain.memory
 
@@ -73,10 +73,10 @@ def test_c7_skill_learner_detects_repetition():
 
 
 # ---------------------------------------------------------
-# C7-3: SkillRetriever finds matching skills
+# Ch7-3: SkillRetriever finds matching skills
 # ---------------------------------------------------------
 
-def test_c7_skill_retriever_matches_description():
+def test_ch7_skill_retriever_matches_description():
     brain = build_brain()
     memory = brain.memory
 
@@ -93,7 +93,7 @@ def test_c7_skill_retriever_matches_description():
 
 
 # ---------------------------------------------------------
-# C7-4: SkillRouter executes a learned skill
+# Ch7-4: SkillRouter executes a learned skill
 # ---------------------------------------------------------
 
 class DummyPlanner:
@@ -105,7 +105,7 @@ class DummyPlanner:
         return f"done:{action}"
 
 
-def test_c7_skill_router_executes_skill():
+def test_ch7_skill_router_executes_skill():
     brain = build_brain()
     memory = brain.memory
 
@@ -127,10 +127,10 @@ def test_c7_skill_router_executes_skill():
 
 
 # ---------------------------------------------------------
-# C7-5: Orchestrator uses skill routing before planning
+# Ch7-5: Orchestrator uses skill routing before planning
 # ---------------------------------------------------------
 
-def test_c7_orchestrator_skill_routing_shortcuts_planning():
+def test_ch7_orchestrator_skill_routing_shortcuts_planning():
     brain = build_brain()
     memory = brain.memory
 
@@ -145,10 +145,10 @@ def test_c7_orchestrator_skill_routing_shortcuts_planning():
 
 
 # ---------------------------------------------------------
-# C7-6: Orchestrator logs traces for learning
+# Ch7-6: Orchestrator logs traces for learning
 # ---------------------------------------------------------
 
-def test_c7_orchestrator_learns_from_execution_trace():
+def test_ch7_orchestrator_learns_from_execution_trace():
     brain = build_brain()
     memory = brain.memory
 

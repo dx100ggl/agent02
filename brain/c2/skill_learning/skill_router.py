@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from typing import Any
+from typing import Any, Optional
 
 from brain.c2.skill_learning.skill_retriever import SkillRetriever
 from brain.c2.skill_learning.skill_store import SkillStore
@@ -15,14 +15,14 @@ class SkillRouter:
     If no suitable skill or planner surface exists, returns None.
     """
 
-    def __init__(self, store, planner):
+    def __init__(self, store: SkillStore, planner: Any):
         # store: SkillStore
         # planner: something like AdaptivePlanner or DummyPlanner in tests
         self._store = store
         self._planner = planner
         self._retriever = SkillRetriever(store)
 
-    def route(self, task_description: str):
+    def route(self, task_description: str) -> Optional[Any]:
         """
         - Try to find a matching skill
         - If found and planner supports execute(), replay it
@@ -37,7 +37,7 @@ class SkillRouter:
         # No skill or incompatible planner → let orchestrator continue normally
         return None
 
-    def _execute_skill(self, skill):
+    def _execute_skill(self, skill: SkillRecord) -> Any:
         """
         Replay the skill policy via a planner that exposes execute(action, params).
         """
@@ -45,4 +45,3 @@ class SkillRouter:
         for step in skill.policy.steps:
             result = self._planner.execute(step.action, step.params)
         return result
-

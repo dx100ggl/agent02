@@ -1,28 +1,115 @@
 # brain/c5/integration/c3_hooks.py
 
+from __future__ import annotations
 
-"""
-C5 → C3 integration hooks.
-Applies memory updates produced by the reflection engine.
-"""
+from dataclasses import dataclass
+from typing import Any, Dict, List, Optional
 
-def apply_memory_updates(memory_engine, updates: dict):
+from brain.c3.memory.base import MemoryProvider, MemoryQuery, MemorySearchResult
+
+
+@dataclass
+class MemoryHookContext:
     """
-    Writes structured updates into long-term memory.
+    Minimal context passed from C2/C4 into C5 when interacting with memory.
+    Extend as needed (e.g., task_id, user_id, session_id).
+    """
+    task_id: Optional[str] = None
+    user_id: Optional[str] = None
+    phase: Optional[str] = None  # e.g., "planning", "execution", "reflection"
 
-    Expected memory_engine interface:
-        memory_engine.write(key: str, value: Any)
-        memory_engine.update_namespace(ns: str, data: dict)
+
+class C3MemoryHooks:
+    """
+    Integration layer between C5 reflection/heuristics and C3 memory.
     """
 
-    if not updates:
-        return memory_engine
+    def __init__(self, memory: MemoryProvider) -> None:
+        self._memory = memory
 
-    for key, value in updates.items():
-        # Namespace update (e.g., "tools", "planner", "skills")
-        if isinstance(value, dict):
-            memory_engine.update_namespace(key, value)
-        else:
-            memory_engine.write(key, value)
+    # --- Write-side hooks -------------------------------------------------
 
-    return memory_engine
+    def on_reflection_summary(
+        self,
+        summary: str,
+        context: Optional[MemoryHookContext] = None,
+        extra_metadata: Optional[Dict[str, Any]] = None,
+    ) -> str:
+        """
+        Called when C5 produces a reflection summary that should be persisted.
+        Returns the memory record id.
+        """
+        metadata: Dict[str, Any] = {
+            "type": "reflection_summary",
+        }
+        if context:
+            if context.task_id:
+                metadata["task_id"] = context.task_id
+            if context.user_id:
+                metadata["user_id"] = context.user_id
+            if context.phase:
+                metadata["phase"] = context.phase
+
+        if extra_metadata:
+            metadata.update(extra_metadata)
+
+        record = self._memory.write(content=summary, metadata=metadata)
+        return record.id
+
+    def on_trace_snippet(
+        self,
+        snippet: str,
+        context: Optional[MemoryHookContext] = None,
+        extra_metadata: Optional[Dict[str, Any]] = None,
+    ) -> str:
+        """
+        Called when a trace snippet (e.g., important tool call, decision) should be persisted.
+        """
+        metadata: Dict[str, Any] = {
+            "type": "trace_snippet",
+        }
+        if context:
+            if context.task_id:
+                metadata["task_id"] = context.task_id
+            if context.user_id:
+                metadata["user_id"] = context.user_id
+            if context.phase:
+                metadata["phase"] = context.phase
+
+        if extra_metadata:
+            metadata.update(extra_metadata)
+
+        record = self._memory.write(content=snippet, metadata=metadata)
+        return record.id
+
+    # --- Read-side hooks --------------------------------------------------
+
+    def retrieve_for_reflection(
+        self,
+        query: str,
+        context: Optional[MemoryHookContext] = None,
+        top_k: int = 10,
+        extra_filter: Optional[Dict[str, Any]] = None,
+    ) -> List[MemorySearchResult]:
+        """
+        Called when C5 wants to pull prior memories to inform reflection.
+        """
+        metadata_filter: Dict[str, Any] = {}
+        if extra_filter:
+            metadata_filter.update(extra_filter)
+
+        if context:
+            if context.task_id:
+                metadata_filter.setdefault("task_id", context.task_id)
+            if context.user_id:
+                metadata_filter.setdefault("user_id", context.user_id)
+
+        mq = MemoryQuery(
+            query=query,
+            top_k=top_k,
+            metadata_filter=metadata_filter or None,
+        )
+        return self._memory.search(mq)
+
+    def stats(self) -> Dict[str, Any]:
+        return self._memory.stats()

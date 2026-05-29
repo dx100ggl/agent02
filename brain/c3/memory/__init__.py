@@ -1,3 +1,21 @@
-from brain.c3.memory.store import MemoryStore, LocalMemoryStore
-from brain.c3.memory.retriever import MemoryRetriever
-from brain.c3.memory.embeddings import SimpleEmbedder
+# brain/c3/memory/__init__.py
+
+from .base import (
+    MemoryRecord,
+    MemoryQuery,
+    MemorySearchResult,
+    MemoryStore,
+    MemoryProvider,
+)
+from .store import InMemoryStore
+from .retriever import SimpleMemoryProvider
+
+__all__ = [
+    "MemoryRecord",
+    "MemoryQuery",
+    "MemorySearchResult",
+    "MemoryStore",
+    "MemoryProvider",
+    "InMemoryStore",
+    "SimpleMemoryProvider",
+]

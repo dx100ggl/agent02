@@ -1,3 +1,5 @@
+# brain/c5/reflection_types.py
+
 from dataclasses import dataclass
 from typing import Any, Dict, List, Optional
 
@@ -12,6 +14,7 @@ class ReflectionInput:
     executor_trace: List[Dict[str, Any]]
     final_output: Any
     error: Optional[str] = None
+    plan_trace: Optional[List[Dict[str, Any]]] = None
 
 
 @dataclass
@@ -19,7 +22,7 @@ class ReflectionFinding:
     """
     A detected issue or insight from reflection.
     """
-    category: str          # e.g., "planning_error", "tool_misuse", "hallucination"
+    category: str
     description: str
     evidence: str
 
@@ -29,8 +32,8 @@ class ReflectionDirective:
     """
     A short, actionable rule for improving future behavior.
     """
-    directive: str         # e.g., "Validate tool arguments before execution."
-    priority: int          # 1–5
+    directive: str
+    priority: int
 
 
 @dataclass

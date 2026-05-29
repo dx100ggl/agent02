@@ -1,44 +1,63 @@
-from typing import List, Dict, Any, Optional
+from __future__ import annotations
 
-from brain.c3.memory.store import MemoryStore, MemoryItem
-from brain.c1.state import BrainState
+import uuid
+from dataclasses import replace
+from typing import Any, Dict, List, Optional
+
+from .base import (
+    EmbeddingModel,
+    MemoryProvider,
+    MemoryQuery,
+    MemoryRecord,
+    MemorySearchResult,
+    MemoryStore,
+)
+from .embeddings import DummyEmbeddingModel
+from .store import InMemoryStore
 
 
-class MemoryRetriever:
+class SimpleMemoryProvider(MemoryProvider):
     """
-    High-level retrieval interface for Memory v2.
+    Default C3 memory façade:
+    - uses an EmbeddingModel to embed content and queries
+    - uses a MemoryStore to persist and search records
     """
 
-    def __init__(self, store: Optional[MemoryStore] = None, min_score: float = 0.3):
-        self.store = store or MemoryStore()
-        self.min_score = min_score
+    def __init__(
+        self,
+        store: Optional[MemoryStore] = None,
+        embedding_model: Optional[EmbeddingModel] = None,
+    ) -> None:
+        self._store = store or InMemoryStore()
+        self._embeddings = embedding_model or DummyEmbeddingModel()
 
-    def retrieve(self, state: BrainState, top_k: int = 5) -> List[Dict[str, Any]]:
-        query = state.user_input or ""
-        if not query:
-            return []
+    def write(
+        self,
+        content: str,
+        metadata: Optional[Dict[str, Any]] = None,
+        record_id: Optional[str] = None,
+    ) -> MemoryRecord:
+        rid = record_id or str(uuid.uuid4())
+        embedding = self._embeddings.embed_text(content)
+        record = MemoryRecord(
+            id=rid,
+            content=content,
+            metadata=metadata or {},
+            embedding=embedding,
+        )
+        self._store.add(record)
+        return replace(record)
 
-        items = self.store.search(query, top_k=top_k)
+    def search(self, query: MemoryQuery) -> List[MemorySearchResult]:
+        query_embedding = self._embeddings.embed_text(query.query)
+        return self._store.search(
+            query_embedding=query_embedding,
+            top_k=query.top_k,
+            metadata_filter=query.metadata_filter,
+        )
 
-        # Recompute scores for transparency
-        embedder = self.store.embedder
-        q_vec = embedder.embed(query)
+    def delete(self, record_id: str) -> None:
+        self._store.delete(record_id)
 
-        from brain.c3.memory.store import MemoryStore as _MS
-
-        results = []
-        for item in items:
-            sim = _MS._cosine(q_vec, item.vector)
-            kw_bonus = 0.1 if query.lower() in item.text.lower() else 0.0
-            score = sim + kw_bonus
-
-            if score >= self.min_score:
-                results.append({
-                    "id": item.id,
-                    "text": item.text,
-                    "metadata": item.metadata,
-                    "score": score,
-                })
-
-        results.sort(key=lambda x: x["score"], reverse=True)
-        return results
+    def stats(self) -> Dict[str, Any]:
+        return self._store.stats()

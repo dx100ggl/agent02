@@ -16,6 +16,8 @@ from brain.c4.tools.registry import ToolRegistry
 from brain.c4.tools.builtin.search_memory_tool import SearchMemoryTool
 from brain.c4.tools.builtin.write_memory_tool import WriteMemoryTool
 from brain.c4.tools.dummy_llm import DummyLLMTool
+from brain.c4.tools.market_data_tool import MarketDataTool
+from brain.c4.tools.technicals_tool import TechnicalsTool
 
 from brain.c5.integration.c3_hooks import C3MemoryHooks
 
@@ -55,6 +57,9 @@ def build_tools(memory):
     tools.register("write_memory", write_tool)
     tools.register("dummy_llm", dummy_llm)
     tools.register("lmstudio_llm", lmstudio_llm)
+    tools.register("market_data", MarketDataTool())
+    tools.register("technicals", TechnicalsTool())
+
 
     # 🔥 Required by test_s4_tool_registry_llm_defaults
     tools.default_llm = "lmstudio_llm"

@@ -2,12 +2,10 @@
 
 class DummyLLMTool:
     """
-    A minimal LLM tool that returns a canned response.
-    Useful for testing research mode without a real LLM backend.
+    Minimal LLM tool for testing research mode.
+    Accepts keyword arguments because Executor calls run(**kwargs).
     """
 
-    def run(self, payload: dict):
-        prompt = payload.get("text", "")
-        return {
-            "text": f"[Dummy LLM] Response to: {prompt}"
-        }
+    def run(self, **kwargs):
+        text = kwargs.get("text", "")
+        return {"text": f"[Dummy LLM] Response to: {text}"}

@@ -44,7 +44,8 @@ class Orchestrator:
     # Used by research entrypoint
     def run_with_plan(self, plan, state: State):
         self.state = state
-        return self.executor.execute_plan(plan, state)
+        self.executor.execute_plan(plan, state)
+        return state.context
 
     class _Mode:
         def __init__(self, value: str = "default"):

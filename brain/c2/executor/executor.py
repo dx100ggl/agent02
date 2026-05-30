@@ -75,15 +75,12 @@ class Executor:
     # Tool execution
     # ---------------------------------------------------------
     def _execute_tool(self, step: PlanStep, state):
-        """
-        Execute a tool call:
-        step.args = {
-            "tool": "<tool_name>",
-            "args": { ... }
-        }
-        """
         tool_name = step.args.get("tool") if step.args else None
         tool_args = step.args.get("args", {}) if step.args else {}
+
+        # Merge state.context into tool_args so tools see prior outputs
+        if hasattr(state, "context"):
+            tool_args = {**state.context, **tool_args}
 
         if tool_name not in self.tools.tools:
             return {"error": True, "message": f"Unknown tool: {tool_name}"}
@@ -91,16 +88,22 @@ class Executor:
         tool = self.tools.get(tool_name)
         result = tool.run(**tool_args)
 
-        # If this is a memory search tool, store results for LLM context
-        if isinstance(result, list):
-            # SearchMemoryTool returns a list[dict]
-            state.memory_results = result
+        # Ensure state.context exists
+        if not hasattr(state, "context"):
+            state.context = {}
 
+        # Store tool outputs
+        if isinstance(result, dict):
+            state.context.update(result)
+
+        # Memory search logic
+        if isinstance(result, list):
+            state.memory_results = result
         elif isinstance(result, dict) and "results" in result:
-            # In case a tool returns {"results": [...]}
             state.memory_results = result["results"]
 
         return result
+
 
     # ---------------------------------------------------------
     # LLM execution (memory-aware)

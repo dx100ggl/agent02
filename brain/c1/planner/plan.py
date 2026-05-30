@@ -131,7 +131,8 @@ def build_research_plan_test(user_input: str, ticker: str) -> Plan:
 
 def build_research_plan_b1(user_input: str, ticker: str) -> Plan:
     """
-    The NEW B1 research plan used by run_research.py.
+    The NEW B-series research plan used by run_research.py.
+    Now includes B1–B4 tools.
     """
     plan = Plan(user_input=user_input)
 
@@ -148,13 +149,30 @@ def build_research_plan_b1(user_input: str, ticker: str) -> Plan:
     )
 
     plan.add_step(
+        description="Fetch options data",
+        tool="use_tool",
+        args={"tool": "options_data", "args": {"ticker": ticker}},
+    )
+
+    plan.add_step(
+        description="Fetch sentiment data",
+        tool="use_tool",
+        args={"tool": "sentiment", "args": {"ticker": ticker}},
+    )
+
+    plan.add_step(
+        description="Fetch macro overlay",
+        tool="use_tool",
+        args={"tool": "macro", "args": {"ticker": ticker}},
+    )
+
+    plan.add_step(
         description="Summarize research",
         tool="use_tool",
         args={"tool": "dummy_llm", "args": {"text": f"Summarize research for {ticker}"}},
     )
 
     return plan
-
 
 # ---------------------------------------------------------------------
 # Intent router

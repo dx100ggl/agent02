@@ -17,13 +17,13 @@ F. Updated Plan + PlanStep for S4
 - [Brain-24 E2-P3 NVDA](https://copilot.microsoft.com/shares/pages/GvviLHjgSBHRyMWmYqj7A)
   - Established a pipeline for analysing US Equity data, but not real data yet.
     Real market data (yfinance, Polygon, AlphaVantage)
-    ✔ Real options data (Tradier, EODHD, Polygon)
-    ✔ Real sentiment feeds (news, social, ETF flows)
-    ✔ Real macro overlays (rates, dollar, factors)
-    ✔ Real analog search (pattern matching)
-    ✔ A CLI (run_research --ticker NVDA)
-    ✔ A FastAPI endpoint (/research?ticker=NVDA)
-    ✔ A web UI dashboard
+    - ✔ Real options data (Tradier, EODHD, Polygon)
+    - ✔ Real sentiment feeds (news, social, ETF flows)
+    - ✔ Real macro overlays (rates, dollar, factors)
+    - ✔ Real analog search (pattern matching)
+    - ✔ A CLI (run_research --ticker NVDA)
+    - ✔ A FastAPI endpoint (/research?ticker=NVDA)
+    - ✔ A web UI dashboard
 
 - [Brain-24 E2-P3 NVDA with yfinance](https://copilot.microsoft.com/shares/pages/dLC2BtwVrjPPEhXWnBkqM)
 - 

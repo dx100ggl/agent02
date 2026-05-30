@@ -8,7 +8,7 @@ from brain.c4.tools.base import Tool
 from brain.c4.tools.builtin.market_data_tool import MarketDataTool
 from brain.c4.tools.builtin.options_data_tool import OptionsDataTool
 from brain.c4.tools.builtin.sentiment_tool import SentimentTool
-from brain.c4.tools.builtin.macro_overlay_tool import MacroOverlayTool
+from brain.c4.tools.builtin.macro_tool import MacroTool
 from brain.c4.tools.builtin.analog_search_tool import AnalogSearchTool
 
 
@@ -33,7 +33,7 @@ class ToolRegistry:
         self.register("market_data", MarketDataTool())
         self.register("options_data", OptionsDataTool())
         self.register("sentiment", SentimentTool())
-        self.register("macro_overlay", MacroOverlayTool())
+        self.register("macro", MacroTool())
         self.register("analog_search", AnalogSearchTool())
 
     # ---------------------------------------------------------

@@ -239,53 +239,7 @@ Get it working, git commit C5. milestone: store/retrieve memories. Working!
 | **Code folder** | ``brain/c2/`` | ``meta_planner.py`` | Implementation of the chapter’s feature |
 
 
-## Table: Cognitive Layers
-
-| C-Layer | Cog-Function | Details |
-| --- | --- | --- |
-| **C1** | Immediate Cognition | - Reflexive<br> - fast<br> - single‑turn reasoning<br> - Planner<br> - executor<br> - router<br> - orchestrator |
-| **C2** | Meta‑Cognition | - Supervises C1.<br> - Evaluates, corrects,<br> - modulates planning and execution.|
-| **C3** | Self‑Directed Cognition | Goal‑setting, memory‑driven behavior, long‑term coherence. |
-| **C4** | Tool‑Augmented Cognition | tools + memory + synthesis. |
-| **C5** | Reflective Cognition |Heuristics, self‑correction, hallucination detection, efficiency rules.|
-
-
-## Development Chapters
-| Chapter | Description | Notes |
-| --- | --- | --- |
-| **Ch1** | building the reflex layer | |
-| **Ch2** | building meta‑cognition | |
-| **Ch3** | building self‑direction | |
-| **Ch4** | building tool‑use | |
-| **Ch5** | building reflection | |
-| **Ch6** | **Metacognitive Regulations:**<br> Evole C2 | - planning<br>- monitoring<br>- Evaluating|
-| **Ch7** | **Skill Learning** <br>- adds skill learning to C2<br>- Stores learned skills in the memory organ  | Let system<br> - refine tool schema<br> - learn new skills<br> - adapt over time |
-| **Ch8** | **Multi-Agent Coordination** | Planner + executor + critic + router <br> as separate agents with shared memory.|
-| **Ch9** | **Long‑Horizon Task Decomposition** | - Hierarchical planning,<br> - subgoals,<br> - and multi‑turn task graphs.
-----
-
-## Engineering Maturity -- The S factor
-
-| S | Description | Notes |
-| --- | --- | --- |
-| **S1** | ??? | |
-| **S2** | ??? | |
-| **S3** | Tools | - Deterministic tool execution is live.<br> - Planner emits tool steps.<br> - Tool schemas integrated into prompts.<br> - REPL shows Thought → ToolCall → Observation.<br> - C1 and C2 are integrated and operational.<br> - Architecture is modular and stable.|
-| **S4** | **Memory**<br> (C3 operational) | - Activate c3/memory/ components (store, retriever, embeddings).<br> - Integrate memory into:<br> -- C1 planner (memory‑conditioned planning).<br> -- C2 meta‑controller (memory‑aware HALT/WARN/REPLAN).<br> -- C4 tools (search_memory, write_memory).<br> -- C5 reflection hooks.<br> - Enables persistent episodic and semantic memory, vector retrieval, and long‑term learning.|
-| **S5** | **Multi‑Agent**<br> (C4 operational) | - Agent spawning and delegation.<br> - Inter‑agent coordination and messaging.<br> - Shared workspace and hierarchi cal planning.<br> - Depends on memory for stability. |
-
-## Evolution stagues -- The E#
-They’re the agent’s developmental trajectory — the stages it grows through as it becomes more capable.
-
-| E | Description | System can |Stage Note |
-| --- | --- | --- | --- |
-| **E1** | Emergence | - perceive input<br> - produce output<br> - run the C1→C2→C3 loop store traces and memories | The “alive but simple” stage. |
-| **E2** | Learning |- detect repeated patterns <br> - form skills<br> - retrieve skills <br> - use memory to guide planning | where your system is right now. |
-| **E3** | Adaptation | - refine skills over time<br> - merge similar skills <br> - specialize divergent skills <br> - adjust behaviour based on reflection |The first step toward self‑improvement. |
-| **E4** | **Autonomy** |- repair plans<br> - replan locally when steps fail <br> - compress repeated plan fragments into new skills <br> - choose when to use skills vs. plan from scratch | The agent become strategic |
-| **E5** | **Meta‑Cognition** |- reflect on its own behaviour<br> - extract preferences <br> - shape its own long‑term patterns <br> - self‑modify its skill library <br> - form a stable “personality” | The ultimate “whole‑brain agent OS”|
-----
-
+**NOTE**: I moved the "various stages" to DX_README.md, as they are the milestone definitions 
 
 ## To do:
 Ch7 - 9. Or we can tighten what you have now 

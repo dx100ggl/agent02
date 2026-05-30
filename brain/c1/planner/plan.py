@@ -132,7 +132,7 @@ def build_research_plan_test(user_input: str, ticker: str) -> Plan:
 def build_research_plan_b1(user_input: str, ticker: str) -> Plan:
     """
     The NEW B-series research plan used by run_research.py.
-    Now includes B1–B4 tools.
+    Now includes B1–B5 tools.
     """
     plan = Plan(user_input=user_input)
 
@@ -164,6 +164,19 @@ def build_research_plan_b1(user_input: str, ticker: str) -> Plan:
         description="Fetch macro overlay",
         tool="use_tool",
         args={"tool": "macro", "args": {"ticker": ticker}},
+    )
+
+    plan.add_step(
+        description="Search historical analogs",
+        tool="use_tool",
+        args={
+            "tool": "analogs",
+            "args": {
+                "ticker": ticker,
+                "horizon": "swing",
+                "depth": "deep",
+            },
+        },
     )
 
     plan.add_step(

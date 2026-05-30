@@ -9,7 +9,7 @@ from brain.c4.tools.builtin.market_data_tool import MarketDataTool
 from brain.c4.tools.builtin.options_data_tool import OptionsDataTool
 from brain.c4.tools.builtin.sentiment_tool import SentimentTool
 from brain.c4.tools.builtin.macro_tool import MacroTool
-from brain.c4.tools.builtin.analog_search_tool import AnalogSearchTool
+from brain.c4.tools.builtin.analogs_tool import AnalogsTool
 
 
 class ToolRegistry:
@@ -34,7 +34,7 @@ class ToolRegistry:
         self.register("options_data", OptionsDataTool())
         self.register("sentiment", SentimentTool())
         self.register("macro", MacroTool())
-        self.register("analog_search", AnalogSearchTool())
+        self.register("analogs", AnalogsTool())
 
     # ---------------------------------------------------------
     # Registration API

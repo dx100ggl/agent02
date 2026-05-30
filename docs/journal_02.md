@@ -26,4 +26,4 @@ F. Updated Plan + PlanStep for S4
     - ✔ A web UI dashboard
 
 - [Brain-24 E2-P3 NVDA with yfinance](https://copilot.microsoft.com/shares/pages/dLC2BtwVrjPPEhXWnBkqM)
-- 
+- [Brain-24 B2-B5 Research stages](https://copilot.microsoft.com/shares/pages/XSJc3qhh8Mxve3F2jXp2A)

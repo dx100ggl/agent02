@@ -39,6 +39,19 @@ class Plan:
     schema: Optional[Dict[str, Any]] = None
     trace: List[Dict[str, Any]] = field(default_factory=list)
 
+    @staticmethod
+    def from_intent(intent: str, params: Dict[str, Any]):
+        """
+        Compatibility constructor for Brain-24 research entrypoint.
+        Delegates to build_plan_for_intent().
+        """
+        from brain.c1.planner.plan import build_plan_for_intent
+
+        user_input = params.get("user_input") or f"research {params.get('ticker', '')}"
+        ticker = params.get("ticker")
+
+        return build_plan_for_intent(intent, user_input, ticker)
+
     def add_step(
         self,
         description: str,

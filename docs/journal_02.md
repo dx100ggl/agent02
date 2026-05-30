@@ -14,3 +14,5 @@ F. Updated Plan + PlanStep for S4
 # 29/05/26
 
 - [Brain-24 Progress overview and Next Steps](https://copilot.microsoft.com/shares/pages/cjEBaaG5RhPTjyazKdH5Y)
+- [Brain-24 E2-P3 NVDA](https://copilot.microsoft.com/shares/pages/GvviLHjgSBHRyMWmYqj7A)
+  - Established a pipeline for analysing US Equity data, but not real data yet.

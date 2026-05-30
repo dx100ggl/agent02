@@ -10,6 +10,7 @@ class State:
         self.tool_results = {}
         self.done = False
         self.trace_log = []   # <-- NEW
+        self.meta = {}          # for E2-P3
 
 # --- Backwards compatibility shim ---
 # Many legacy modules still import BrainState.

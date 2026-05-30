@@ -7,6 +7,7 @@ from typing import Optional, List, Dict, Any
 from brain.c1.state import State
 from brain.c1.planner.adaptive_planner import AdaptivePlanner
 from brain.c1.planner.plan import Plan
+from brain.c1.planner.intent_classifier import IntentClassifier
 
 from brain.c2.router.dynamic_router import DynamicRouter
 from brain.c2.executor.executor import Executor
@@ -94,6 +95,10 @@ class Orchestrator:
     def run(self, state: State):
         self.state = state
 
+        # Ensure meta exists (S4 / Brain-24)
+        if not hasattr(state, "meta") or not isinstance(state.meta, dict):
+            state.meta = {}
+
         planner_trace: List[Any] = []
         executor_trace: List[Dict[str, Any]] = []
         final_output: Any = None
@@ -112,6 +117,21 @@ class Orchestrator:
                 state.done = True
                 return skill_result
 
+        # 0.5 Intent classification (C1, E2‑P3)
+        # ---------------------------------------------------------
+        if "intent" not in state.meta:
+            classifier = IntentClassifier()
+            llm_tool = self.tools.get(self.tools.default_llm)
+
+            def _llm(prompt: str) -> str:
+                raw = llm_tool.run({"text": prompt})
+                if isinstance(raw, dict):
+                    return str(raw.get("text") or raw.get("output") or raw.get("response") or "")
+                return str(raw)
+
+            intent_name = classifier.classify(_llm, state.user_input)
+            state.meta["intent"] = intent_name
+
         # 1. Memory retrieval (C3 via hooks, planning phase)
         # ---------------------------------------------------------
         planning_ctx = MemoryHookContext(
@@ -126,9 +146,6 @@ class Orchestrator:
             top_k=5,
         )
 
-        # NOTE: we do NOT set state.memory_results here to avoid
-        # clashing with executor's memory_results (which are tool-based).
-        # Planner receives planning_memory_results explicitly.
         # 2. C2 meta-planning
         # ---------------------------------------------------------
         directive = self.meta_planner.create_directive(state.user_input)

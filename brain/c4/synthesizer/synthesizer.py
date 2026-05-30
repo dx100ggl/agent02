@@ -2,18 +2,12 @@
 
 from brain.c1.state import BrainState
 
-
 class Synthesizer:
-    """
-    Default synthesizer:
-    - If research_sections exist in state.meta, synthesize a research brief
-    - Otherwise fallback to last result
-    """
-
     def __init__(self, llm=None):
         self.llm = llm
 
     def synthesize(self, state: BrainState):
+        # 1. Check for research sections
         if hasattr(state, "meta") and isinstance(state.meta, dict):
             sections = state.meta.get("research_sections")
             ticker = state.meta.get("ticker", "UNKNOWN")
@@ -50,12 +44,30 @@ Write a structured brief with sections:
 5) Historical analogs (last 3 years)
 6) 1–4 week scenarios: bull / base / bear
 7) Key levels, triggers, and invalidations
-
-Do not give explicit trading advice; focus on scenarios and structure.
 """
+
                 raw = self.llm.run({"text": prompt})
+                
+                # --- UNIVERSAL EXTRACTION LOGIC ---
                 if isinstance(raw, dict):
-                    return raw.get("text") or raw.get("output") or raw.get("response") or ""
+
+                    # LM Studio / OpenAI chat completion
+                    if "choices" in raw and raw["choices"]:
+                        msg = raw["choices"][0].get("message", {})
+                        if "content" in msg:
+                            return msg["content"]
+
+                    # Legacy formats
+                    return (
+                        raw.get("text")
+                        or raw.get("output")
+                        or raw.get("response")
+                        or raw.get("answer")
+                        or ""
+                    )
+
+                # Fallback
                 return str(raw)
 
+        # 2. Fallback to last tool result
         return state.history[-1]["result"] if state.history else ""

@@ -12,16 +12,25 @@ class ResearchSkill:
 
     name = "equity_research_skill"
 
-    def run(self, plan_result: Dict[str, Any], state) -> Dict[str, Any]:
-        sections = {
-            "technical": plan_result.get("fetch_market_data", {}),
-            "options": plan_result.get("fetch_options_data", {}),
-            "sentiment": plan_result.get("fetch_sentiment_data", {}),
-            "macro": plan_result.get("fetch_macro_overlay", {}),
-            "analogs": plan_result.get("search_historical_analogs", {}),
-        }
+    CANONICAL_MAP = {
+        "fetch_market_data": "technical",
+        "fetch_options_data": "options",
+        "fetch_sentiment_data": "sentiment",
+        "fetch_macro_overlay": "macro",
+        "search_historical_analogs": "analogs",
+    }
 
+    def run(self, plan_result: Dict[str, Any], state) -> Dict[str, Any]:
+        sections = {}
+
+        for step_key, section_name in self.CANONICAL_MAP.items():
+            sections[section_name] = plan_result.get(step_key, {})
+
+        # Store in state.meta for Synthesizer
         state.meta["research_sections"] = sections
-        state.meta["ticker"] = plan_result.get("fetch_market_data", {}).get("ticker", "UNKNOWN")
+
+        # Extract ticker if available
+        tech = sections.get("technical", {})
+        state.meta["ticker"] = tech.get("ticker", "UNKNOWN")
 
         return sections

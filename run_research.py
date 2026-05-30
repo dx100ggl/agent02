@@ -10,7 +10,7 @@ from brain.c2.executor.executor import Executor
 from brain.c2.skill_learning.research_skill import ResearchSkill
 from brain.c4.synthesizer.synthesizer import Synthesizer
 
-from llm.lmstudio_llm import LMStudioLLM
+from brain.llm.lmstudio_llm import LMStudioLLM
 
 
 def run_research(user_input: str, ticker: str = "NVDA") -> str:

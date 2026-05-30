@@ -24,3 +24,6 @@ F. Updated Plan + PlanStep for S4
     ✔ A CLI (run_research --ticker NVDA)
     ✔ A FastAPI endpoint (/research?ticker=NVDA)
     ✔ A web UI dashboard
+
+- [Brain-24 E2-P3 NVDA with yfinance](https://copilot.microsoft.com/shares/pages/dLC2BtwVrjPPEhXWnBkqM)
+- 

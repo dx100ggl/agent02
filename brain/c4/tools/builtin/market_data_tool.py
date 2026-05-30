@@ -1,34 +1,48 @@
-# brain/c4/tools/builtin/market_data_tool.py
+# brain/c4/tools/market_data_tool.py
 
 import yfinance as yf
-from brain.c4.tools.base import Tool
+import pandas as pd
 
-class MarketDataTool(Tool):
+class MarketDataTool:
     """
-    Real market data backend using yfinance.
+    Fetch OHLCV data for a ticker.
+    Returns a JSON‑safe dict with price series.
     """
 
-    def __init__(self):
-        super().__init__(
-            name="market_data",
-            description="Fetch OHLCV data via yfinance"
-        )
+    def run(self, **kwargs):
+        ticker = kwargs.get("ticker")
+        period = kwargs.get("period", "6mo")
+        interval = kwargs.get("interval", "1d")
 
-    def run(self, ticker: str, period: str = "6mo", interval: str = "1d"):
-        data = yf.download(ticker, period=period, interval=interval)
+        if not ticker:
+            return {"error": "ticker missing"}
 
-        if data.empty:
-            return {
-                "ok": False,
-                "error": f"No data returned for ticker {ticker}"
-            }
+        df = yf.download(ticker, period=period, interval=interval, progress=False)
 
-        ohlcv = data[["Open", "High", "Low", "Close", "Volume"]].reset_index()
+        if df.empty:
+            return {"error": f"no data for {ticker}"}
+
+        # --- FIX 1: Flatten multi-index columns ---
+        if isinstance(df.columns, pd.MultiIndex):
+            df.columns = [col[0] for col in df.columns]
+
+        # Reset index so Date becomes a column
+        df = df.reset_index()
+
+        # Convert Timestamp → ISO string
+        if "Date" in df.columns:
+            df["Date"] = df["Date"].astype(str)
+
+        # Force all column names to strings
+        df.columns = [str(c) for c in df.columns]
+
+        # Convert numpy types → Python native types
+        df = df.apply(lambda col: col.map(lambda x: x.item() if hasattr(x, "item") else x))
+
+        # Convert to JSON-safe dict
+        ohlcv = df.to_dict(orient="records")
 
         return {
-            "ok": True,
             "ticker": ticker,
-            "period": period,
-            "interval": interval,
-            "ohlcv": ohlcv.to_dict(orient="records"),
+            "ohlcv": ohlcv
         }

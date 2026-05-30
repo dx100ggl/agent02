@@ -16,8 +16,8 @@ from brain.c4.tools.registry import ToolRegistry
 from brain.c4.tools.builtin.search_memory_tool import SearchMemoryTool
 from brain.c4.tools.builtin.write_memory_tool import WriteMemoryTool
 from brain.c4.tools.dummy_llm import DummyLLMTool
-from brain.c4.tools.market_data_tool import MarketDataTool
-from brain.c4.tools.technicals_tool import TechnicalsTool
+from brain.c4.tools.builtin.market_data_tool import MarketDataTool
+from brain.c4.tools.builtin.technicals_tool import TechnicalsTool
 
 from brain.c5.integration.c3_hooks import C3MemoryHooks
 

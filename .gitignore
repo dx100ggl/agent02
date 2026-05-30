@@ -1,15 +1,15 @@
-**/__pycache__/
-**/venv/
-**/.venv/
+**/__pycache__
+**/venv
+**/.venv
 *.pid
 *.pyc
 *.png
 *.log
 *.out
 agent_os.code-workspace
-**/wiki_memory/wiki_memory_store/
-**/wiki_memory/artifacts/
+**/wiki_memory/wiki_memory_store
+**/wiki_memory/artifacts
 # x.txt is the output of tests/test_router.py, so gitignore it.
 x.txt
-patches/
-**/*.egg-info/
+patches
+**/*.egg-info

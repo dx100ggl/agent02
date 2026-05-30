@@ -1,44 +1,54 @@
 # brain/c4/tools/builtin/options_data_tool.py
 
-from __future__ import annotations
-from typing import Any, Dict, List
-from dataclasses import dataclass
+import requests
 from brain.c4.tools.base import Tool
 
-
-@dataclass
-class OptionsDataToolConfig:
-    default_expiry_window_days: int = 30
-
+EODHD_API = "https://eodhd.com/api/options/{ticker}?api_token={token}&fmt=json"
 
 class OptionsDataTool(Tool):
     """
-    Fetch options chain, IV term structure, skew, and OI clusters.
+    Fetches real options chain + IV metrics from EODHD.
     """
 
-    def __init__(self, config: OptionsDataToolConfig | None = None):
+    def __init__(self, api_token: str = None):
         super().__init__(
-            name="options_data_tool",
-            description="Fetch options chain, IV term structure, skew, and OI clusters.",
+            name="options_data",
+            description="Fetch options chain + IV metrics via EODHD"
         )
-        self.config = config or OptionsDataToolConfig()
+        self.api_token = api_token or "DEMO"   # safe fallback for dev
 
-    def run(self, *args, **kwargs) -> Dict[str, Any]:
-        ticker: str = kwargs["ticker"]
-        horizon_days: int = kwargs.get("horizon_days", self.config.default_expiry_window_days)
+    def run(self, ticker: str, expiry: str = None):
+        url = EODHD_API.format(ticker=ticker, token=self.api_token)
+        resp = requests.get(url)
 
-        # TODO: integrate with your options data provider
-        iv_term_structure: List[Dict[str, Any]] = []
-        skew: List[Dict[str, Any]] = []
-        oi_clusters: List[Dict[str, Any]] = []
+        if resp.status_code != 200:
+            return {
+                "ok": False,
+                "error": f"HTTP {resp.status_code} from EODHD"
+            }
+
+        data = resp.json()
+
+        if not isinstance(data, dict) or "data" not in data:
+            return {
+                "ok": False,
+                "error": f"Malformed response for {ticker}"
+            }
+
+        chain = data["data"]
+
+        # Extract simple IV metrics
+        iv_values = [
+            c.get("implied_volatility")
+            for c in chain
+            if isinstance(c.get("implied_volatility"), (int, float))
+        ]
+
+        iv_mean = sum(iv_values) / len(iv_values) if iv_values else None
 
         return {
+            "ok": True,
             "ticker": ticker,
-            "horizon_days": horizon_days,
-            "iv_term_structure": iv_term_structure,  # [{expiry, iv}]
-            "skew": skew,                            # [{strike, call_iv, put_iv}]
-            "oi_clusters": oi_clusters,              # [{strike, type, oi}]
-            "implied_move_pct": None,                # e.g., 1m implied move
-            "iv_regime": None,                       # e.g., "elevated", "compressed"
-            "notes": "OptionsDataTool stub – implement chain + IV/skew/OI logic.",
+            "iv_mean": iv_mean,
+            "contracts": chain,
         }

@@ -1,5 +1,3 @@
-# brain/c1/planner/plan.py
-
 from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import List, Dict, Any, Optional
@@ -86,6 +84,9 @@ class Plan:
         self.trace.append({"event": event, "data": data or {}})
 
 
+# ---------------------------------------------------------------------
+# UPDATED: canonical tool names matching ToolRegistry
+# ---------------------------------------------------------------------
 def build_research_plan(user_input: str, ticker: str) -> Plan:
     """
     Build a tool-based research plan for an equity ticker.
@@ -96,31 +97,31 @@ def build_research_plan(user_input: str, ticker: str) -> Plan:
     plan.add_step(
         description="Fetch market data",
         tool="use_tool",
-        args={"tool": "market_data_tool", "args": {"ticker": ticker}},
+        args={"tool": "market_data", "args": {"ticker": ticker}},
     )
 
     plan.add_step(
         description="Fetch options data",
         tool="use_tool",
-        args={"tool": "options_data_tool", "args": {"ticker": ticker}},
+        args={"tool": "options_data", "args": {"ticker": ticker}},
     )
 
     plan.add_step(
         description="Fetch sentiment data",
         tool="use_tool",
-        args={"tool": "sentiment_tool", "args": {"ticker": ticker}},
+        args={"tool": "sentiment", "args": {"ticker": ticker}},
     )
 
     plan.add_step(
         description="Fetch macro overlay",
         tool="use_tool",
-        args={"tool": "macro_overlay_tool", "args": {}},
+        args={"tool": "macro_overlay", "args": {}},
     )
 
     plan.add_step(
         description="Search historical analogs",
         tool="use_tool",
-        args={"tool": "analog_search_tool", "args": {"ticker": ticker}},
+        args={"tool": "analog_search", "args": {"ticker": ticker}},
     )
 
     return plan

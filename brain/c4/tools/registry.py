@@ -19,22 +19,34 @@ class ToolRegistry:
 
     def __init__(self, tools: Optional[Iterable[Any]] = None):
         tools = tools or []
+
+        # Load any tools passed in (legacy behavior)
         self.tools: Dict[str, Any] = {t.name: t for t in tools}
         self.schemas: Dict[str, ToolSchema] = {}
 
+        # Default LLM tool name
         self.default_llm = "lmstudio_llm"
 
-        self.register("market_data_tool", MarketDataTool())
-        self.register("options_data_tool", OptionsDataTool())
-        self.register("sentiment_tool", SentimentTool())
-        self.register("macro_overlay_tool", MacroOverlayTool())
-        self.register("analog_search_tool", AnalogSearchTool())
+        # -----------------------------------------------------
+        # Register built‑in research tools (canonical names)
+        # -----------------------------------------------------
+        self.register("market_data", MarketDataTool())
+        self.register("options_data", OptionsDataTool())
+        self.register("sentiment", SentimentTool())
+        self.register("macro_overlay", MacroOverlayTool())
+        self.register("analog_search", AnalogSearchTool())
 
+    # ---------------------------------------------------------
+    # Registration API
+    # ---------------------------------------------------------
     def register(self, name: str, tool: Any, schema: Optional[ToolSchema] = None):
         self.tools[name] = tool
         if schema:
             self.schemas[name] = schema
 
+    # ---------------------------------------------------------
+    # Lookup API
+    # ---------------------------------------------------------
     def get(self, name: str) -> Any:
         return self.tools[name]
 

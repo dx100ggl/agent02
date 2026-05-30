@@ -1,5 +1,3 @@
-# brain/c2/skill_learning/research_skill.py
-
 from __future__ import annotations
 from typing import Dict, Any
 
@@ -21,16 +19,40 @@ class ResearchSkill:
     }
 
     def run(self, plan_result: Dict[str, Any], state) -> Dict[str, Any]:
+
         sections = {}
 
+        # ---------------------------------------------------------
+        # SAFE TICKER EXTRACTION (works for FakeState + BrainState)
+        # ---------------------------------------------------------
+        context = getattr(state, "context", {}) or {}
+        meta = getattr(state, "meta", {}) or {}
+
+        ticker = (
+            context.get("ticker")
+            or meta.get("ticker")
+            or self._extract_ticker_from_user_input(state.user_input)
+        )
+
+        # Store ticker for synthesizer
+        state.meta["ticker"] = ticker
+
+        # ---------------------------------------------------------
+        # MAP TOOL OUTPUTS INTO CANONICAL SECTIONS
+        # ---------------------------------------------------------
         for step_key, section_name in self.CANONICAL_MAP.items():
             sections[section_name] = plan_result.get(step_key, {})
 
-        # Store in state.meta for Synthesizer
+        # ---------------------------------------------------------
+        # STORE SECTIONS FOR SYNTHESIZER
+        # ---------------------------------------------------------
         state.meta["research_sections"] = sections
 
-        # Extract ticker if available
-        tech = sections.get("technical", {})
-        state.meta["ticker"] = tech.get("ticker", "UNKNOWN")
-
         return sections
+
+    # -------------------------------------------------------------
+    # FALLBACK TICKER EXTRACTION
+    # -------------------------------------------------------------
+    def _extract_ticker_from_user_input(self, text: str) -> str:
+        # Very simple fallback: last token, uppercased
+        return text.strip().split()[-1].upper()

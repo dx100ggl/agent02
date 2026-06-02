@@ -13,3 +13,4 @@ agent_os.code-workspace
 x.txt
 patches
 **/*.egg-info
+secrets

@@ -1,3 +1,5 @@
+# brain/c2/meta_planner.py
+
 # C2 Meta-Planner (Ch6)
 # Controls HOW planning should occur before C1 executes it.
 

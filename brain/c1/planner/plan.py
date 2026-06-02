@@ -1,3 +1,5 @@
+# brain/c1/planner/plan.py
+
 from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import List, Dict, Any, Optional
@@ -149,9 +151,9 @@ def build_research_plan_b1(user_input: str, ticker: str) -> Plan:
     )
 
     plan.add_step(
-        description="Fetch options data",
+        description="Fetch real options data",
         tool="use_tool",
-        args={"tool": "options_data", "args": {"ticker": ticker}},
+        args={"tool": "real_options_data", "args": {"ticker": ticker}},
     )
 
     plan.add_step(
@@ -186,6 +188,7 @@ def build_research_plan_b1(user_input: str, ticker: str) -> Plan:
     )
 
     return plan
+
 
 # ---------------------------------------------------------------------
 # Intent router

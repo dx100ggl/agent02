@@ -7,6 +7,7 @@ from brain.c1.planner.tool_schema import ToolSchema
 from brain.c4.tools.base import Tool
 from brain.c4.tools.builtin.market_data_tool import MarketDataTool
 from brain.c4.tools.builtin.options_data_tool import OptionsDataTool
+from brain.c4.tools.builtin.real_options_data_tool import RealOptionsDataTool
 from brain.c4.tools.builtin.sentiment_tool import SentimentTool
 from brain.c4.tools.builtin.macro_tool import MacroTool
 from brain.c4.tools.builtin.analogs_tool import AnalogsTool
@@ -32,6 +33,7 @@ class ToolRegistry:
         # -----------------------------------------------------
         self.register("market_data", MarketDataTool())
         self.register("options_data", OptionsDataTool())
+        self.register("real_options_data", RealOptionsDataTool())
         self.register("sentiment", SentimentTool())
         self.register("macro", MacroTool())
         self.register("analogs", AnalogsTool())

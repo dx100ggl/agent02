@@ -84,6 +84,51 @@ class AdaptivePlanner:
     # Tool‑aware plan construction
     # ---------------------------------------------------------
     def _build_tool_call_plan(self, plan: Plan, user_input: str):
+        text = user_input.lower()
+
+        # --- SPECIALIZED: research pipeline for tickers ---
+        if "research" in text:
+            tokens = user_input.replace(",", " ").split()
+            ticker = None
+            for t in tokens:
+                if t.isalpha() and t.isupper() and 1 <= len(t) <= 5:
+                    ticker = t
+                    break
+
+            if ticker:
+                plan.meta["mode"] = "research"
+                plan.meta["ticker"] = ticker
+
+                # These tool names must match your ToolRegistry keys
+                # Adjust if your actual names differ.
+                plan.add_step(
+                    description=f"Fetch technical/market data for {ticker}",
+                    tool="use_tool",
+                    args={"tool": "market_data", "args": {"ticker": ticker}},
+                )
+                plan.add_step(
+                    description=f"Fetch options and volatility data for {ticker}",
+                    tool="use_tool",
+                    args={"tool": "options_data", "args": {"ticker": ticker}},
+                )
+                plan.add_step(
+                    description=f"Fetch sentiment and narrative for {ticker}",
+                    tool="use_tool",
+                    args={"tool": "sentiment", "args": {"ticker": ticker}},
+                )
+                plan.add_step(
+                    description=f"Fetch macro/sector context for {ticker}",
+                    tool="use_tool",
+                    args={"tool": "macro", "args": {"ticker": ticker}},
+                )
+                plan.add_step(
+                    description=f"Fetch historical analogs for {ticker}",
+                    tool="use_tool",
+                    args={"tool": "analogs", "args": {"ticker": ticker}},
+                )
+                return
+
+        # --- FALLBACK: existing generic tool selection logic ---
         chosen_tool = None
         chosen_schema: Optional[ToolSchema] = None
 

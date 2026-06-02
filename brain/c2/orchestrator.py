@@ -57,9 +57,13 @@ class Orchestrator:
             self.schema = schema
 
     def _wrap_directive(self, d: Any) -> Any:
+        # If router returned a directive, use it
         if hasattr(d, "mode") and hasattr(d, "schema"):
             return d
-        return Orchestrator._Directive()
+
+        # Otherwise force tool_call mode for research queries
+        return Orchestrator._Directive(mode="tool_call", schema="tool_call")
+
 
     def run(self, state: State):
         self.state = state
@@ -116,6 +120,9 @@ class Orchestrator:
         )
         planner_trace.append(plan)
 
+        # ⭐ Make the plan visible outside the orchestrator
+        state.plan = plan
+        
         # CH6: attach plan visualization if requested
         if getattr(state, "debug_visualize_plan", False):
             lines = ["=== PLAN ==="]

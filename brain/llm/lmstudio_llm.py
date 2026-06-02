@@ -1,9 +1,10 @@
-# brain/c4/tools/builtin/lmstudio_llm.py
+# brain/llm/lmstudio_llm.py
 
 from __future__ import annotations
 
 import requests
 from typing import Any, Dict, Union
+import json
 
 from brain.c4.tools.base import Tool
 
@@ -82,6 +83,10 @@ class LMStudioLLM(Tool):
             "messages": [{"role": "user", "content": full_prompt}],
             "temperature": 0.7,
         }
+
+        print("\n\n=== DEBUG: PROMPT SENT TO LM STUDIO ===")
+        print(json.dumps(request_body, indent=2))
+        print("=== END PROMPT DEBUG ===\n\n")
 
         for attempt in range(3):
 

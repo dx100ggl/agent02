@@ -1,24 +1,49 @@
 # brain/cli/run_research.py
 
-import argparse
-from brain.research_entrypoint import run_research_episode
-import json
+import sys
 
-def main():
-    parser = argparse.ArgumentParser(description="Run Brain-24 research pipeline")
-    parser.add_argument("--ticker", required=True)
-    parser.add_argument("--horizon", default="swing")
-    parser.add_argument("--depth", default="deep")
+from brain.research_entrypoint import run_research
 
-    args = parser.parse_args()
 
-    result = run_research_episode(
-        ticker=args.ticker,
-        horizon=args.horizon,
-        depth=args.depth,
-    )
+def _print_plan_summary(plan) -> None:
+    if not plan or not getattr(plan, "steps", None):
+        return
 
-    print(json.dumps(result, indent=2))
+    print("=== PLAN (SUMMARY) ===")
+    print(f"Steps: {len(plan.steps)}")
+    for i, step in enumerate(plan.steps[:5]):
+        desc = getattr(step, "description", "")
+        tool = getattr(step, "tool", "")
+        print(f"  {i+1}. {desc} [{tool}]")
+    if len(plan.steps) > 5:
+        print(f"  ... (+{len(plan.steps) - 5} more steps)")
+    print()
+
+
+def main() -> None:
+    if len(sys.argv) < 2:
+        print("Usage: python -m brain.cli.run_research \"your query here\"")
+        sys.exit(1)
+
+    query = " ".join(sys.argv[1:])
+    result = run_research(query)
+
+    print("=== QUERY ===")
+    print(query)
+    print()
+
+    # Small, optional plan summary (no giant object dump)
+    plan = result.get("plan")
+    _print_plan_summary(plan)
+
+    print("=== SYNTHESIS ===")
+    print(result.get("synthesis", ""))
+    print()
+
+    print("=== REFLECTIONS ===")
+    print(result.get("reflections", ""))
+    print()
+
 
 if __name__ == "__main__":
     main()

@@ -6,20 +6,13 @@ from brain.c4.tools.base import Tool
 from brain.c4.tools.builtin.options_data_tool import OptionsDataTool
 from brain.c4.tools.builtin.options_cache import OptionsDataCache
 
-from brain.c4.tools.builtin.eodhd_client import EODHDOptionsClient
-from brain.c4.tools.builtin.eodhd_normalizer import EODHDOptionsNormalizer
+from brain.c4.tools.builtin.yfinance_client import YFinanceOptionsClient
+from brain.c4.tools.builtin.yfinance_normalizer import YFinanceOptionsNormalizer
 
 
 class RealOptionsDataTool(Tool):
     """
-    C2: Real Options Chain + IV Metrics + Greeks (EODHD-backed, B2-compatible schema)
-
-    Behaviour:
-    - Attempts to fetch real options chain data from EODHD.
-    - Normalizes into the exact B2 schema.
-    - Uses a small TTL cache to avoid hammering the API.
-    - On any failure (network, schema, provider error), falls back
-      to the deterministic B2 OptionsDataTool.
+    C2: Real Options Chain + IV Metrics + Greeks (yfinance-backed, B2-compatible schema)
     """
 
     def __init__(
@@ -29,18 +22,14 @@ class RealOptionsDataTool(Tool):
     ):
         super().__init__(
             name="real_options_data",
-            description="Fetches real options chain, IV metrics, and Greeks for a ticker (EODHD-backed, B2 schema).",
+            description="Fetches real options chain, IV metrics, and Greeks for a ticker (yfinance-backed, B2 schema).",
         )
 
         self._cache = cache or OptionsDataCache()
         self._fallback = fallback_tool or OptionsDataTool()
 
-        self._eodhd = EODHDOptionsClient()
-        self._eodhd_norm = EODHDOptionsNormalizer()
-
-    # ------------------------------------------------------------------ #
-    # Public Tool API
-    # ------------------------------------------------------------------ #
+        self._yf = YFinanceOptionsClient()
+        self._yf_norm = YFinanceOptionsNormalizer()
 
     def run(self, **kwargs) -> Dict[str, Any]:
         ticker = kwargs.get("ticker")
@@ -49,29 +38,21 @@ class RealOptionsDataTool(Tool):
 
         cache_key = ("snapshot", ticker)
 
-        # 1. Cache
         cached = self._cache.get(cache_key)
         if cached is not None:
             return self._with_source(cached, source="real_cached")
 
-        # 2. Try EODHD
-        ok, data = self._eodhd.get_chain(ticker)
+        ok, data = self._yf.get_chain(ticker)
         if ok:
             try:
-                normalized = self._eodhd_norm.normalize(ticker, data)
+                normalized = self._yf_norm.normalize(ticker, data)
                 if normalized:
                     self._cache.set(cache_key, normalized)
-                    return self._with_source(normalized, source="real_eodhd")
+                    return self._with_source(normalized, source="real_yfinance")
             except Exception:
-                # fall through to fallback
                 pass
 
-        # 3. Fallback to deterministic B2
-        return self._fallback_with_source(ticker, reason="eodhd_error")
-
-    # ------------------------------------------------------------------ #
-    # Internal helpers
-    # ------------------------------------------------------------------ #
+        return self._fallback_with_source(ticker, reason="yfinance_error")
 
     def _fallback_with_source(self, ticker: str, reason: str) -> Dict[str, Any]:
         base = self._fallback.run(ticker=ticker)
@@ -79,8 +60,7 @@ class RealOptionsDataTool(Tool):
 
     @staticmethod
     def _with_source(payload: Dict[str, Any], source: str) -> Dict[str, Any]:
-        if not isinstance(payload, dict):
-            return payload
         out = dict(payload)
         out["source"] = source
         return out
+

@@ -10,12 +10,12 @@ from brain.c1.planner.plan import Plan, PlanStep
 
 class Executor:
     """
-    C2 Executor (S4 version).
+    C2 Executor (Brain‑24 version)
 
-    Executes a Plan:
-    - each PlanStep may be: use_tool, llm, think
-    - results are written back into the Plan
-    - memory-aware: LLM receives memory_context from prior tool results
+    FIXED:
+    - Stores tool results under their tool name (market_data, options_data, etc.)
+    - Does NOT merge tool internals into state.context
+    - Fully compatible with Synthesizer
     """
 
     def __init__(self, tools: ToolRegistry, memory: MemoryProvider):
@@ -23,14 +23,14 @@ class Executor:
         self.memory = memory
 
     # ---------------------------------------------------------
-    # Main entry point: execute a full Plan
+    # Main entry point
     # ---------------------------------------------------------
     def execute_plan(self, plan: Plan, state):
-        """
-        Execute all steps in a Plan.
-        Returns the final LLM text or tool output.
-        """
         final_output = None
+
+        # Ensure context exists
+        if not hasattr(state, "context") or state.context is None:
+            state.context = {}
 
         for i, step in enumerate(plan.steps):
             plan.log("step_start", {
@@ -48,14 +48,14 @@ class Executor:
                 "result": result,
             })
 
-            # Capture final text if present
+            # Capture final LLM text
             if isinstance(result, dict) and result.get("text"):
                 final_output = result["text"]
 
         return final_output or "Done."
 
     # ---------------------------------------------------------
-    # Execute a single PlanStep
+    # Step dispatcher
     # ---------------------------------------------------------
     def _execute_step(self, step: PlanStep, state) -> Dict[str, Any]:
         action = step.tool or step.description.lower()
@@ -72,16 +72,9 @@ class Executor:
         return {"error": True, "message": f"Unknown step/tool: {step.tool}"}
 
     # ---------------------------------------------------------
-    # Tool execution
+    # TOOL EXECUTION
     # ---------------------------------------------------------
     def _execute_tool(self, step: PlanStep, state):
-        """
-        Execute a tool call:
-        step.args = {
-            "tool": "<tool_name>",
-            "args": { ... }
-        }
-        """
         tool_name = step.args.get("tool") if step.args else None
         tool_args = step.args.get("args", {}) if step.args else {}
 
@@ -91,27 +84,26 @@ class Executor:
         tool = self.tools.get(tool_name)
         result = tool.run(**tool_args)
 
-        # If this is a memory search tool, store results for LLM context
-        if isinstance(result, list):
-            # SearchMemoryTool returns a list[dict]
-            state.memory_results = result
+        # ⭐ Store tool result under its tool name
+        state.context[tool_name] = result
 
+        # ⭐ Memory search support
+        if isinstance(result, list):
+            state.memory_results = result
         elif isinstance(result, dict) and "results" in result:
-            # In case a tool returns {"results": [...]}
             state.memory_results = result["results"]
 
         return result
 
     # ---------------------------------------------------------
-    # LLM execution (memory-aware)
+    # LLM EXECUTION
     # ---------------------------------------------------------
     def _execute_llm(self, step: PlanStep, state):
         llm_tool = self.tools.get(self.tools.default_llm)
 
-        # Build memory context for the LLM
+        # Build memory context
         memory_context = ""
         if getattr(state, "memory_results", None):
-            # state.memory_results is a list of dicts from SearchMemoryTool
             lines: List[str] = []
             for item in state.memory_results:
                 content = item.get("content", "")
@@ -129,7 +121,12 @@ class Executor:
 
         # Normalize LLM output
         if isinstance(raw, dict):
-            text = raw.get("text") or raw.get("output") or raw.get("response") or raw.get("answer")
+            text = (
+                raw.get("text")
+                or raw.get("output")
+                or raw.get("response")
+                or raw.get("answer")
+            )
         else:
             text = str(raw)
 

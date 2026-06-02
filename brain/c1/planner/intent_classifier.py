@@ -1,5 +1,6 @@
-from typing import Protocol
+# brain/c1/planner/intent_classifier.py
 
+from typing import Protocol
 
 class LLMCallable(Protocol):
     def __call__(self, prompt: str) -> str: ...
@@ -7,13 +8,20 @@ class LLMCallable(Protocol):
 
 class IntentClassifier:
     """
-    Uses the LLM itself to classify user intent into:
+    Classifies user intent into:
       - write_memory
       - retrieve_memory
+      - equity_research
       - normal_llm
     """
 
     def classify(self, llm: LLMCallable, user_input: str) -> str:
+        text = user_input.lower()
+
+        # Simple heuristic for research intent
+        if "research" in text or "brief" in text or "analysis" in text:
+            return "equity_research"
+
         prompt = f"""
 You are an intent classifier for a memory-enabled agent.
 

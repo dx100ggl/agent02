@@ -1,9 +1,10 @@
-# brain/c4/tools/builtin/lmstudio_llm.py
+# brain/llm/lmstudio_llm.py
 
 from __future__ import annotations
 
 import requests
 from typing import Any, Dict, Union
+import json
 
 from brain.c4.tools.base import Tool
 
@@ -83,61 +84,72 @@ class LMStudioLLM(Tool):
             "temperature": 0.7,
         }
 
-        try:
-            resp = requests.post(self.url, json=request_body, timeout=30)
-            data = resp.json()
+        print("\n\n=== DEBUG: PROMPT SENT TO LM STUDIO ===")
+        print(json.dumps(request_body, indent=2))
+        print("=== END PROMPT DEBUG ===\n\n")
 
-            # -----------------------------------------------------
-            # 1. Chat-style response
-            # -----------------------------------------------------
-            if "choices" in data and data["choices"]:
-                choice = data["choices"][0]
+        for attempt in range(3):
 
-                # Chat format
-                if "message" in choice and "content" in choice["message"]:
-                    answer = choice["message"]["content"]
+            try:
+                
+                resp = requests.post(self.url, json=request_body, timeout=(10,300))
+                data = resp.json()
+
+                # -----------------------------------------------------
+                # 1. Chat-style response
+                # -----------------------------------------------------
+                if "choices" in data and data["choices"]:
+                    choice = data["choices"][0]
+
+                    # Chat format
+                    if "message" in choice and "content" in choice["message"]:
+                        answer = choice["message"]["content"]
+                        return {
+                            "final": True,
+                            "LLM": answer,
+                            "thought": "LLM response",
+                            "answer": answer,
+                        }
+
+                    # Text completion format
+                    if "text" in choice:
+                        answer = choice["text"]
+                        return {
+                            "final": True,
+                            "LLM": answer,
+                            "thought": "LLM response",
+                            "answer": answer,
+                        }
+
+                # -----------------------------------------------------
+                # 2. LM Studio error format
+                # -----------------------------------------------------
+                if "error" in data:
                     return {
-                        "final": True,
-                        "LLM": answer,
-                        "thought": "LLM response",
-                        "answer": answer,
+                        "error": True,
+                        "message": data["error"],
+                        "LLM": "",
+                        "thought": "LLM error",
                     }
 
-                # Text completion format
-                if "text" in choice:
-                    answer = choice["text"]
-                    return {
-                        "final": True,
-                        "LLM": answer,
-                        "thought": "LLM response",
-                        "answer": answer,
-                    }
-
-            # -----------------------------------------------------
-            # 2. LM Studio error format
-            # -----------------------------------------------------
-            if "error" in data:
+                # -----------------------------------------------------
+                # 3. Unexpected format
+                # -----------------------------------------------------
                 return {
                     "error": True,
-                    "message": data["error"],
+                    "message": f"Unexpected LM Studio response: {data}",
                     "LLM": "",
-                    "thought": "LLM error",
+                    "thought": "Unexpected response",
                 }
 
-            # -----------------------------------------------------
-            # 3. Unexpected format
-            # -----------------------------------------------------
-            return {
-                "error": True,
-                "message": f"Unexpected LM Studio response: {data}",
-                "LLM": "",
-                "thought": "Unexpected response",
-            }
+            except requests.exceptions.ReadTimeout:
+                if attempt == 2:
+                    raise
 
-        except Exception as e:
-            return {
-                "error": True,
-                "message": str(e),
-                "LLM": "",
-                "thought": "Exception raised",
-            }
+            except Exception as e:
+                return {
+                    "error": True,
+                    "message": str(e),
+                    "LLM": "",
+                    "thought": "Exception raised",
+                }

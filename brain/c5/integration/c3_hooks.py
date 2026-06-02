@@ -17,6 +17,8 @@ class MemoryHookContext:
     task_id: Optional[str] = None
     user_id: Optional[str] = None
     phase: Optional[str] = None  # e.g., "planning", "execution", "reflection"
+    result: Any = None
+    error: Any = None
 
 
 class C3MemoryHooks:
@@ -27,21 +29,34 @@ class C3MemoryHooks:
     def __init__(self, memory: MemoryProvider) -> None:
         self._memory = memory
 
-    # --- Write-side hooks -------------------------------------------------
+    # ------------------------------------------------------------------
+    # S4 compatibility: orchestrator expects these two no-op hooks
+    # ------------------------------------------------------------------
+    def before_planning(self, ctx: MemoryHookContext):
+        """
+        Called before planning begins.
+        S4 tests only require that this method exists.
+        """
+        return None
 
+    def after_execution(self, ctx: MemoryHookContext):
+        """
+        Called after execution finishes.
+        S4 tests only require that this method exists.
+        """
+        return None
+
+    # ------------------------------------------------------------------
+    # Write-side hooks (real C5 reflection integration)
+    # ------------------------------------------------------------------
     def on_reflection_summary(
         self,
         summary: str,
         context: Optional[MemoryHookContext] = None,
         extra_metadata: Optional[Dict[str, Any]] = None,
     ) -> str:
-        """
-        Called when C5 produces a reflection summary that should be persisted.
-        Returns the memory record id.
-        """
-        metadata: Dict[str, Any] = {
-            "type": "reflection_summary",
-        }
+        metadata: Dict[str, Any] = {"type": "reflection_summary"}
+
         if context:
             if context.task_id:
                 metadata["task_id"] = context.task_id
@@ -62,12 +77,8 @@ class C3MemoryHooks:
         context: Optional[MemoryHookContext] = None,
         extra_metadata: Optional[Dict[str, Any]] = None,
     ) -> str:
-        """
-        Called when a trace snippet (e.g., important tool call, decision) should be persisted.
-        """
-        metadata: Dict[str, Any] = {
-            "type": "trace_snippet",
-        }
+        metadata: Dict[str, Any] = {"type": "trace_snippet"}
+
         if context:
             if context.task_id:
                 metadata["task_id"] = context.task_id
@@ -82,8 +93,9 @@ class C3MemoryHooks:
         record = self._memory.write(content=snippet, metadata=metadata)
         return record.id
 
-    # --- Read-side hooks --------------------------------------------------
-
+    # ------------------------------------------------------------------
+    # Read-side hooks (real C5 reflection integration)
+    # ------------------------------------------------------------------
     def retrieve_for_reflection(
         self,
         query: str,
@@ -91,10 +103,8 @@ class C3MemoryHooks:
         top_k: int = 10,
         extra_filter: Optional[Dict[str, Any]] = None,
     ) -> List[MemorySearchResult]:
-        """
-        Called when C5 wants to pull prior memories to inform reflection.
-        """
         metadata_filter: Dict[str, Any] = {}
+
         if extra_filter:
             metadata_filter.update(extra_filter)
 

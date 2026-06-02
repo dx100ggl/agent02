@@ -2,11 +2,34 @@
 
 class DynamicRouter:
     """
-    Extremely simple router for C2.
-    In C6, routing is intentionally minimal and can be extended later.
+    Brain‑24 / S4 DynamicRouter
     """
 
     def route(self, state):
-        # Always return "default" for now.
-        # Future versions may inspect state, memory, or plan metadata.
+        """
+        Determine which skill should handle the current state.
+
+        Backward‑compatible:
+        - If state has no .meta, or no intent, fall back to "default".
+        """
+
+        meta = getattr(state, "meta", None)
+        if not isinstance(meta, dict):
+            return "default"
+
+        intent = meta.get("intent", "")
+        if not isinstance(intent, str):
+            return "default"
+
+        intent = intent.lower()
+
+        if intent == "equity_research":
+            return "equity_research_skill"
+
+        if intent == "write_memory":
+            return "write_memory_skill"
+
+        if intent == "retrieve_memory":
+            return "retrieve_memory_skill"
+
         return "default"

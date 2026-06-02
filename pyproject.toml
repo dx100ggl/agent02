@@ -1,0 +1,28 @@
+[project]
+name = "brain-24"
+version = "0.1.0"
+description = "Whole Brain v1 — modular agent OS with LLM, skills, memory, and PARR orchestrator."
+authors = [
+    { name = "Xingo Toastie" }
+]
+requires-python = ">=3.10"
+dependencies = [
+    "requests",
+]
+
+[tool.setuptools]
+package-dir = {"" = "."}
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["whole_brain*"]
+
+[tool.pytest.ini_options]
+pythonpath = [
+    "."
+]
+addopts = "-q"
+asyncio_mode = "auto"
+
+[project.scripts]
+run_research = "brain.cli.run_research:main"

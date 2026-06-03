@@ -3,71 +3,73 @@
 from __future__ import annotations
 from typing import Any, Dict
 
-from brain.c1.state import BrainState
-
 
 class Synthesizer:
     """
     Multi‑section research synthesizer.
-    Consumes:
-        state.meta["research_sections"] = {
-            "market": {...},
-            "technicals": {...},
-            "options": {...},
-            "sentiment": {...},
-            "macro": {...},
-            "analogs": {...},
-            "fundamentals": {...},
-        }
-
-    Produces:
-        A structured multi‑section research report.
+    Consumes normalized sections from SectionNormalizer and produces
+    a structured, LLM‑generated research report.
     """
 
-    def __init__(self, llm=None):
+    def __init__(self, llm: Any):
         self.llm = llm
 
     # ------------------------------------------------------------------
-    # Main entrypoint
+    # Public API used by ResearchEngine
     # ------------------------------------------------------------------
-    def synthesize(self, state: BrainState) -> str:
-        if not self.llm:
-            return "No LLM configured for synthesis."
+    def synthesize_from_sections(
+        self,
+        ticker: str,
+        intent: str,
+        sections: Dict[str, Any],
+    ) -> str:
+        """
+        Main synthesis entrypoint.
+        Accepts normalized sections and produces a full research report.
+        """
+        prompt = self._build_prompt(ticker, intent, sections)
+        raw = self.llm.run({"text": prompt})
+        return self._extract_llm_text(raw)
 
-        sections = state.meta.get("research_sections", {})
-        ticker = state.meta.get("ticker", "UNKNOWN")
+    # ------------------------------------------------------------------
+    # Prompt builder
+    # ------------------------------------------------------------------
+    def _build_prompt(
+        self,
+        ticker: str,
+        intent: str,
+        sections: Dict[str, Any],
+    ) -> str:
 
-        # Build the prompt
-        prompt = f"""
+        return f"""
 You are Brain‑24, a multi‑tool equity research engine.
 
-Write a full, structured research report for {ticker} using the sections below.
-Each section may contain raw tool outputs, summaries, or partial data.
-Your job is to integrate them into a coherent 1–4 week swing‑horizon research note.
+Write a full, structured research report for {ticker}.
+User intent: {intent}
 
-User intent: {state.user_input}
+Below are normalized research sections from multiple tools:
 
 ===========================
-[MARKET DATA]
-{sections.get("market", {})}
+[MARKET]
+{sections.get("market")}
 
 [TECHNICALS]
-{sections.get("technicals", {})}
+{sections.get("technicals")}
 
 [OPTIONS]
-{sections.get("options", {})}
+{sections.get("options")}
 
 [SENTIMENT]
-{sections.get("sentiment", {})}
+{sections.get("sentiment")}
 
 [MACRO]
-{sections.get("macro", {})}
+{sections.get("macro")}
 
 [ANALOGS]
-{sections.get("analogs", {})}
+{sections.get("analogs")}
 
 [FUNDAMENTALS]
-{sections.get("fundamentals", {})}
+{sections.get("fundamentals")}
 ===========================
 
 Write a structured research report with the following sections:
@@ -83,12 +85,17 @@ Write a structured research report with the following sections:
 9) Key levels, triggers, and invalidations  
 10) Final synthesis and risk summary
 
-Be concise, analytical, and avoid repetition.
+Guidelines:
+- Be concise, analytical, and avoid repetition.
+- Integrate signals across sections.
+- Use professional equity‑research tone.
+- Do not hallucinate data not implied by the sections.
 """
 
-        raw = self.llm.run({"text": prompt})
-
-        # Extract text from LM Studio response
+    # ------------------------------------------------------------------
+    # Extract text from LM Studio response
+    # ------------------------------------------------------------------
+    def _extract_llm_text(self, raw: Any) -> str:
         if isinstance(raw, dict):
             # Chat completion format
             if "choices" in raw and raw["choices"]:
@@ -107,3 +114,12 @@ Be concise, analytical, and avoid repetition.
             )
 
         return str(raw)
+
+    def synthesize(self, params: Dict[str, Any], exec_ctx: Dict[str, Any]) -> str:
+        """
+        Compatibility shim for old executor behavior.
+        Used when a SYNTHESIZE step is executed directly.
+        """
+        ticker = params.get("ticker", "UNKNOWN")
+        intent = params.get("intent", "")
+        return f"Synthesis for {ticker}: {intent}"

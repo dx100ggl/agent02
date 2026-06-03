@@ -10,18 +10,17 @@ from brain.llm.lmstudio_llm import LMStudioLLM
 from brain.c2.executor.executor import Executor
 from brain.c2.router.dynamic_router import DynamicRouter
 
-from brain.c3.memory.store import MemoryStore
+from brain.c3.memory.store import InMemoryStore
 from brain.c3.memory.retriever import MemoryRetriever
 from brain.c3.memory.memory_service import MemoryService
+from brain.c3.memory.base import MemoryRecord
+
+from brain.c4.normalizers.section_normalizer import SectionNormalizer
 
 
 class ResearchEngine:
     """
     New C1 → C2 → C3 → C4 research engine.
-    - C2 DynamicRouter chooses plan (fundamentals for now)
-    - C3 MemoryService retrieves memory
-    - C2 Executor runs plan steps
-    - C4 Synthesizer produces final output
     """
 
     def __init__(self):
@@ -43,7 +42,7 @@ class ResearchEngine:
         # -----------------------------
         # C3: Memory
         # -----------------------------
-        store = MemoryStore()
+        store = InMemoryStore()
         retriever = MemoryRetriever(store)
         self._memory = MemoryService(store, retriever)
 
@@ -65,6 +64,11 @@ class ResearchEngine:
             memory=self._memory,
         )
 
+        # -----------------------------
+        # C4: Normalizer
+        # -----------------------------
+        self._normalizer = SectionNormalizer()
+
     # ------------------------------------------------------------------
     # Public entrypoint
     # ------------------------------------------------------------------
@@ -74,20 +78,47 @@ class ResearchEngine:
         """
         exec_ctx = self._router.route(query, ctx={})
 
-        # Final synthesized output is in exec_ctx["final"]["result"]
-        final = exec_ctx.get("final", {})
-        result = final.get("result", "")
+        # -----------------------------
+        # Extract final step output
+        # -----------------------------
+        final_step = exec_ctx.get("final", {})
+        raw_outputs = final_step.get("result", {})
 
+        # -----------------------------
+        # Normalize tool outputs (C4)
+        # -----------------------------
+        if isinstance(raw_outputs, dict):
+            normalized_sections = self._normalizer.normalize(raw_outputs)
+            ticker = raw_outputs.get("ticker", "UNKNOWN")
+        else:
+            normalized_sections = {}
+            ticker = "UNKNOWN"
+
+        # -----------------------------
+        # Synthesize full research report (C4)
+        # -----------------------------
+        report = self._synthesizer.synthesize_from_sections(
+            ticker=ticker,
+            intent=query,
+            sections=normalized_sections,
+        )
+
+        # -----------------------------
         # Write memory (C3)
-        self._memory.store.add(
-            content=result,
+        # -----------------------------
+        record = MemoryRecord(
+            id=f"research:{query}",
+            content=report,
+            embedding=None,
             metadata={"query": query},
         )
+        self._memory.store.add(record)
 
         return {
             "query": query,
             "execution": exec_ctx,
-            "result": result,
+            "normalized": normalized_sections,
+            "result": report,
         }
 
 

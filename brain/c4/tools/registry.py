@@ -5,17 +5,21 @@ from typing import Dict, Iterable, Optional, Any
 from brain.c1.planner.tool_schema import ToolSchema
 
 from brain.c4.tools.base import Tool
+
+# Built‑in tools
 from brain.c4.tools.builtin.market_data_tool import MarketDataTool
+from brain.c4.tools.builtin.technicals_tool import TechnicalsTool
 from brain.c4.tools.builtin.options_data_tool import OptionsDataTool
 from brain.c4.tools.builtin.real_options_data_tool import RealOptionsDataTool
 from brain.c4.tools.builtin.sentiment_tool import SentimentTool
 from brain.c4.tools.builtin.macro_tool import MacroTool
 from brain.c4.tools.builtin.analogs_tool import AnalogsTool
+from brain.c4.tools.builtin.fundamentals_tool import FundamentalsTool
 
 
 class ToolRegistry:
     """
-    S4 ToolRegistry with backward compatibility.
+    Unified C4 ToolRegistry with consistent naming.
     """
 
     def __init__(self, tools: Optional[Iterable[Any]] = None):
@@ -32,11 +36,13 @@ class ToolRegistry:
         # Register built‑in research tools (canonical names)
         # -----------------------------------------------------
         self.register("market_data", MarketDataTool())
+        self.register("technicals_data", TechnicalsTool())
         self.register("options_data", OptionsDataTool())
         self.register("real_options_data", RealOptionsDataTool())
-        self.register("sentiment", SentimentTool())
-        self.register("macro", MacroTool())
-        self.register("analogs", AnalogsTool())
+        self.register("sentiment_data", SentimentTool())
+        self.register("macro_data", MacroTool())
+        self.register("analogs_data", AnalogsTool())
+        self.register("fundamentals_data", FundamentalsTool())
 
     # ---------------------------------------------------------
     # Registration API
@@ -63,7 +69,7 @@ class ToolRegistry:
 
 
 # -------------------------------------------------------------------------
-# Default registry bootstrap (module‑level function)
+# Default registry bootstrap
 # -------------------------------------------------------------------------
 
 def build_default_tool_registry() -> ToolRegistry:
@@ -71,10 +77,4 @@ def build_default_tool_registry() -> ToolRegistry:
     Standard registry bootstrap used by CLI entrypoints and orchestrators.
     Ensures all builtin tools (including fundamentals) are registered.
     """
-    registry = ToolRegistry()
-
-    # Register Fundamentals Tool
-    from brain.c4.tools.builtin.fundamentals_tool import register_fundamentals_tool
-    register_fundamentals_tool(registry)
-
-    return registry
+    return ToolRegistry()

@@ -1,4 +1,4 @@
-from datetime import datetime
+from datetime import datetime, timezone
 from brain.c4.tools.base import Tool
 
 
@@ -19,7 +19,7 @@ class MacroTool(Tool):
         if not ticker:
             return {"error": "ticker missing"}
 
-        now = datetime.utcnow().isoformat()
+        now = datetime.now(timezone.utc).isoformat()
 
         # Deterministic macro snapshot
         rates = {

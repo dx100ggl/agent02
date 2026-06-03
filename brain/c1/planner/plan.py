@@ -41,11 +41,11 @@ class PlanStepKind(str, Enum):
     SYNTHESIZE = "synthesize"
     FUNDAMENTALS = "fundamentals"
     MARKET_DATA = "market_data"
-    TECHNICALS = "technicals"
-    OPTIONS = "options"
-    SENTIMENT = "sentiment"
-    MACRO = "macro"
-    ANALOGS = "analogs"
+    TECHNICALS = "technicals_data"
+    OPTIONS = "options_data"
+    SENTIMENT = "sentiment_data"
+    MACRO = "macro_data"
+    ANALOGS = "analogs_data"
 
 
 # ---------------------------------------------------------------------------
@@ -120,7 +120,7 @@ def build_full_research_plan(
     steps.append(
         PlanStep(
             kind=PlanStepKind.TECHNICALS,
-            tool_name="technicals",
+            tool_name="technicals_data",
             params={"ticker": ticker},
         )
     )

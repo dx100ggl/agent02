@@ -114,17 +114,17 @@ class AdaptivePlanner:
                 plan.add_step(
                     description=f"Fetch sentiment and narrative for {ticker}",
                     tool="use_tool",
-                    args={"tool": "sentiment", "args": {"ticker": ticker}},
+                    args={"tool": "sentiment_data", "args": {"ticker": ticker}},
                 )
                 plan.add_step(
                     description=f"Fetch macro/sector context for {ticker}",
                     tool="use_tool",
-                    args={"tool": "macro", "args": {"ticker": ticker}},
+                    args={"tool": "macro_data", "args": {"ticker": ticker}},
                 )
                 plan.add_step(
                     description=f"Fetch historical analogs for {ticker}",
                     tool="use_tool",
-                    args={"tool": "analogs", "args": {"ticker": ticker}},
+                    args={"tool": "analogs_data", "args": {"ticker": ticker}},
                 )
                 return
 

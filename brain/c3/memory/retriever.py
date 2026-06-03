@@ -63,3 +63,15 @@ class SimpleMemoryProvider(MemoryProvider):
 
     def stats(self) -> Dict[str, Any]:
         return self._store.stats()
+
+class MemoryRetriever:
+    """
+    Thin wrapper for backward compatibility and new architecture.
+    Must expose a .retrieve(query: str) -> List[str] method.
+    """
+
+    def __init__(self, store):
+        self.store = store
+
+    def retrieve(self, query: str):
+        return self.store.search(query)

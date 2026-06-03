@@ -35,6 +35,18 @@ class PlanStep:
 class ResearchPlan:
     steps: List[PlanStep]
 
+class PlanStepKind(str, Enum):
+    SEARCH = "search"
+    TOOL = "tool"
+    SYNTHESIZE = "synthesize"
+    FUNDAMENTALS = "fundamentals"
+    MARKET_DATA = "market_data"
+    TECHNICALS = "technicals"
+    OPTIONS = "options"
+    SENTIMENT = "sentiment"
+    MACRO = "macro"
+    ANALOGS = "analogs"
+
 
 # ---------------------------------------------------------------------------
 # Fundamentals‑aware plan builder
@@ -72,6 +84,98 @@ def build_fundamentals_plan(
                 "ticker": ticker,
                 "intent": intent,
             },
+        )
+    )
+
+    return ResearchPlan(steps=steps)
+
+def build_full_research_plan(
+    ticker: str,
+    intent: str,
+    as_of: Optional[str] = None,
+) -> ResearchPlan:
+    """
+    Multi‑tool research plan:
+    1. Market data
+    2. Technicals
+    3. Options chain
+    4. Sentiment
+    5. Macro
+    6. Analogs
+    7. Fundamentals
+    8. Synthesis
+    """
+    steps: List[PlanStep] = []
+
+    # 1. Market data
+    steps.append(
+        PlanStep(
+            kind=PlanStepKind.MARKET_DATA,
+            tool_name="market_data",
+            params={"ticker": ticker},
+        )
+    )
+
+    # 2. Technicals
+    steps.append(
+        PlanStep(
+            kind=PlanStepKind.TECHNICALS,
+            tool_name="technicals",
+            params={"ticker": ticker},
+        )
+    )
+
+    # 3. Options chain
+    steps.append(
+        PlanStep(
+            kind=PlanStepKind.OPTIONS,
+            tool_name="options_data",
+            params={"ticker": ticker},
+        )
+    )
+
+    # 4. Sentiment
+    steps.append(
+        PlanStep(
+            kind=PlanStepKind.SENTIMENT,
+            tool_name="sentiment_data",
+            params={"ticker": ticker},
+        )
+    )
+
+    # 5. Macro
+    steps.append(
+        PlanStep(
+            kind=PlanStepKind.MACRO,
+            tool_name="macro_data",
+            params={"ticker": ticker},
+        )
+    )
+
+    # 6. Analogs
+    steps.append(
+        PlanStep(
+            kind=PlanStepKind.ANALOGS,
+            tool_name="analogs_data",
+            params={"ticker": ticker},
+        )
+    )
+
+    # 7. Fundamentals
+    steps.append(
+        PlanStep(
+            kind=PlanStepKind.FUNDAMENTALS,
+            tool_name="fundamentals_data",
+            params={"ticker": ticker, "as_of": as_of},
+        )
+    )
+
+    # 8. Synthesis
+    steps.append(
+        PlanStep(
+            kind=PlanStepKind.SYNTHESIZE,
+            tool_name=None,
+            params={"ticker": ticker, "intent": intent},
         )
     )
 

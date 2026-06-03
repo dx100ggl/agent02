@@ -1,102 +1,169 @@
 # brain/c2/executor/executor.py
+
 from __future__ import annotations
+import json
+from typing import Any, Dict
 
-from typing import Any, Dict, Optional
-
-from brain.c1.planner.plan import PlanStep, PlanStepKind, ResearchPlan
-from brain.c4.tools.builtin.fundamentals_tool import (
-    FundamentalsRequest,
-    FundamentalsResult,
-    FUNDAMENTALS_TOOL_NAME,
-)
-from brain.c4.tools.registry import ToolRegistry
+from brain.c1.planner.plan import ResearchPlan, PlanStep, PlanStepKind
+from brain.llm.lmstudio_llm import LMStudioLLM
 
 
-# ---------------------------------------------------------------------------
-# Execution Context
-# ---------------------------------------------------------------------------
-
-class ExecutionContext:
+class Executor:
     """
-    Shared execution context across steps.
-    C4 synthesizer reads from this.
+    Deterministic C2 executor (Option A).
+    Executes steps in order.
+    If a tool fails, asks the LLM for a repair.
+    Retries once with repaired arguments.
     """
 
-    def __init__(self) -> None:
-        self._results: Dict[str, Any] = {}
-
-    def set_result(self, key: str, value: Any) -> None:
-        self._results[key] = value
-
-    def get_result(self, key: str, default: Any = None) -> Any:
-        return self._results.get(key, default)
-
-
-# ---------------------------------------------------------------------------
-# Plan Executor
-# ---------------------------------------------------------------------------
-
-class PlanExecutor:
-    def __init__(self, llm: Any, tools: ToolRegistry) -> None:
-        self._llm = llm
+    def __init__(self, tools, synthesizer, llm: LMStudioLLM):
         self._tools = tools
+        self._synth = synthesizer
+        self._llm = llm
 
-    def execute(
-        self,
-        plan: ResearchPlan,
-        ctx: Optional[Dict[str, Any]] = None,
-    ) -> ExecutionContext:
-
-        exec_ctx = ExecutionContext()
-        tool_ctx: Dict[str, Any] = ctx or {}
+    # ------------------------------------------------------------------
+    # Public entrypoint
+    # ------------------------------------------------------------------
+    def execute(self, plan: ResearchPlan, ctx: Dict[str, Any]) -> Dict[str, Any]:
+        exec_ctx = {"steps": [], "final": None}
 
         for step in plan.steps:
-            if step.kind == PlanStepKind.FUNDAMENTALS:
-                self._execute_fundamentals_step(step, exec_ctx, tool_ctx)
+            step_result = self._execute_step(step, exec_ctx)
+            exec_ctx["steps"].append(step_result)
 
-            elif step.kind == PlanStepKind.SEARCH:
-                self._execute_search_step(step, exec_ctx, tool_ctx)
-
-            elif step.kind == PlanStepKind.SYNTHESIZE:
-                # handled by C4 synthesizer
-                continue
-
+        exec_ctx["final"] = exec_ctx["steps"][-1] if exec_ctx["steps"] else None
         return exec_ctx
 
-    # -----------------------------------------------------------------------
+    # ------------------------------------------------------------------
+    # Step execution
+    # ------------------------------------------------------------------
+    def _execute_step(self, step: PlanStep, exec_ctx: Dict[str, Any]) -> Dict[str, Any]:
+        kind = step.kind
+
+        if kind == PlanStepKind.FUNDAMENTALS:
+            return self._execute_fundamentals(step)
+
+        if kind == PlanStepKind.SYNTHESIZE:
+            return self._execute_synthesis(step, exec_ctx)
+
+        if kind == PlanStepKind.TOOL:
+            return self._execute_tool(step)
+
+        if kind == PlanStepKind.SEARCH:
+            return self._execute_search(step)
+        
+        if kind == PlanStepKind.MARKET_DATA:
+            return self._execute_tool(step)
+
+        if kind == PlanStepKind.TECHNICALS:
+            return self._execute_tool(step)
+
+        if kind == PlanStepKind.OPTIONS:
+            return self._execute_tool(step)
+
+        if kind == PlanStepKind.SENTIMENT:
+            return self._execute_tool(step)
+
+        if kind == PlanStepKind.MACRO:
+            return self._execute_tool(step)
+
+        if kind == PlanStepKind.ANALOGS:
+            return self._execute_tool(step)        
+
+        return {"step": step, "error": True, "message": f"Unknown step kind: {kind}"}
+
+    # ------------------------------------------------------------------
     # Fundamentals step
-    # -----------------------------------------------------------------------
+    # ------------------------------------------------------------------
+    def _execute_fundamentals(self, step: PlanStep) -> Dict[str, Any]:
+        tool = self._tools.get(step.tool_name)
+        args = step.params
 
-    def _execute_fundamentals_step(
-        self,
-        step: PlanStep,
-        exec_ctx: ExecutionContext,
-        tool_ctx: Dict[str, Any],
-    ) -> None:
+        result = self._safe_tool_call(tool, args)
+        if not self._is_failure(result):
+            return {"step": step, "result": result, "repaired": False}
 
-        tool = self._tools.get(step.tool_name or FUNDAMENTALS_TOOL_NAME)
+        # Repair attempt
+        repaired_args = self._repair_args(step, args, result)
+        result2 = self._safe_tool_call(tool, repaired_args)
 
-        request = FundamentalsRequest(
-            ticker=step.params["ticker"],
-            as_of=step.params.get("as_of"),
-        )
+        return {
+            "step": step,
+            "result": result2,
+            "repaired": True,
+            "repair_args": repaired_args,
+        }
 
-        result: FundamentalsResult = tool.run(
-            llm=self._llm,
-            request=request,
-            ctx=tool_ctx,
-        )
+    # ------------------------------------------------------------------
+    # Synthesis step
+    # ------------------------------------------------------------------
+    def _execute_synthesis(self, step: PlanStep, exec_ctx: Dict[str, Any]) -> Dict[str, Any]:
+        result = self._synth.synthesize(step.params, exec_ctx)
+        return {"step": step, "result": result, "repaired": False}
 
-        exec_ctx.set_result("fundamentals", result)
+    # ------------------------------------------------------------------
+    # Generic tool step
+    # ------------------------------------------------------------------
+    def _execute_tool(self, step: PlanStep) -> Dict[str, Any]:
+        tool = self._tools.get(step.tool_name)
+        args = step.params
 
-    # -----------------------------------------------------------------------
-    # Existing search step (unchanged)
-    # -----------------------------------------------------------------------
+        result = self._safe_tool_call(tool, args)
+        if not self._is_failure(result):
+            return {"step": step, "result": result, "repaired": False}
 
-    def _execute_search_step(
-        self,
-        step: PlanStep,
-        exec_ctx: ExecutionContext,
-        tool_ctx: Dict[str, Any],
-    ) -> None:
-        ...
+        repaired_args = self._repair_args(step, args, result)
+        result2 = self._safe_tool_call(tool, repaired_args)
+
+        return {
+            "step": step,
+            "result": result2,
+            "repaired": True,
+            "repair_args": repaired_args,
+        }
+
+    # ------------------------------------------------------------------
+    # Search step (optional)
+    # ------------------------------------------------------------------
+    def _execute_search(self, step: PlanStep) -> Dict[str, Any]:
+        # Placeholder: you can wire in a search tool later
+        return {"step": step, "result": {"search": "not implemented"}, "repaired": False}
+
+    # ------------------------------------------------------------------
+    # Tool call wrapper
+    # ------------------------------------------------------------------
+    def _safe_tool_call(self, tool, args: Dict[str, Any]) -> Any:
+        try:
+            return tool.run(**args)
+        except Exception as e:
+            return {"error": True, "message": str(e)}
+
+    def _is_failure(self, result: Any) -> bool:
+        return isinstance(result, dict) and result.get("error")
+
+    # ------------------------------------------------------------------
+    # LLM-based argument repair
+    # ------------------------------------------------------------------
+    def _repair_args(self, step: PlanStep, args: Dict[str, Any], failure: Any) -> Dict[str, Any]:
+        prompt = f"""
+A tool call failed.
+
+Tool: {step.tool_name}
+Original arguments: {args}
+Failure: {failure}
+
+Task:
+Suggest corrected arguments as a JSON dict.
+Only return the JSON. No commentary.
+"""
+
+        raw = self._llm.complete(prompt)
+
+        try:
+            repaired = json.loads(raw)
+            if isinstance(repaired, dict):
+                return repaired
+        except Exception:
+            pass
+
+        return args

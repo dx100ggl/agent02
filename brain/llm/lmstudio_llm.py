@@ -46,13 +46,6 @@ class LMStudioLLM(Tool):
     # Prompt construction (supports memory context)
     # ---------------------------------------------------------
     def _build_prompt(self, payload: Union[str, Dict[str, Any]]) -> str:
-        """
-        Accepts either:
-            - "plain string"
-            - {"text": "...", "memory_context": "..."}
-
-        Produces a single user-facing prompt string.
-        """
         if isinstance(payload, dict):
             user_text = payload.get("text", "")
             memory_context = payload.get("memory_context", "") or ""
@@ -76,6 +69,10 @@ class LMStudioLLM(Tool):
     # Main run() entry point
     # ---------------------------------------------------------
     def run(self, payload: Union[str, Dict[str, Any]]) -> Dict[str, Any]:
+        """
+        Core LM Studio call.
+        Returns a dict with keys: final, LLM, thought, answer.
+        """
         full_prompt = self._build_prompt(payload)
 
         request_body = {
@@ -83,21 +80,15 @@ class LMStudioLLM(Tool):
             "messages": [{"role": "user", "content": full_prompt}],
             "temperature": 0.7,
         }
-
         print("\n\n=== DEBUG: PROMPT SENT TO LM STUDIO ===")
         print(json.dumps(request_body, indent=2))
         print("=== END PROMPT DEBUG ===\n\n")
-
         for attempt in range(3):
-
             try:
-                
-                resp = requests.post(self.url, json=request_body, timeout=(10,300))
+                resp = requests.post(self.url, json=request_body, timeout=(10, 300))
                 data = resp.json()
 
-                # -----------------------------------------------------
-                # 1. Chat-style response
-                # -----------------------------------------------------
+                # Chat-style response
                 if "choices" in data and data["choices"]:
                     choice = data["choices"][0]
 
@@ -121,20 +112,16 @@ class LMStudioLLM(Tool):
                             "answer": answer,
                         }
 
-                # -----------------------------------------------------
-                # 2. LM Studio error format
-                # -----------------------------------------------------
+                # LM Studio error format
                 if "error" in data:
                     return {
                         "error": True,
                         "message": data["error"],
                         "LLM": "",
-                        "thought": "LLM error",
+                        "thought": "LM Studio error",
                     }
 
-                # -----------------------------------------------------
-                # 3. Unexpected format
-                # -----------------------------------------------------
+                # Unexpected format
                 return {
                     "error": True,
                     "message": f"Unexpected LM Studio response: {data}",
@@ -153,3 +140,24 @@ class LMStudioLLM(Tool):
                     "LLM": "",
                     "thought": "Exception raised",
                 }
+
+    # ---------------------------------------------------------
+    # Compatibility wrapper for tools expecting llm.complete()
+    # ---------------------------------------------------------
+    def complete(self, prompt: str, temperature: float = 0.0) -> str:
+        """
+        Tools (including fundamentals) call llm.complete(prompt).
+        Internally maps to LMStudioLLM.run().
+        Returns a *string*, not a dict.
+        """
+        result = self.run(prompt)
+
+        if isinstance(result, dict):
+            # Prefer "answer", fallback to "LLM"
+            return (
+                result.get("answer")
+                or result.get("LLM")
+                or str(result)
+            )
+
+        return str(result)

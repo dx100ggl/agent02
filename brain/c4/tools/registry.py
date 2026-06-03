@@ -60,3 +60,21 @@ class ToolRegistry:
 
     def list_tools(self) -> Dict[str, Any]:
         return dict(self.tools)
+
+
+# -------------------------------------------------------------------------
+# Default registry bootstrap (module‑level function)
+# -------------------------------------------------------------------------
+
+def build_default_tool_registry() -> ToolRegistry:
+    """
+    Standard registry bootstrap used by CLI entrypoints and orchestrators.
+    Ensures all builtin tools (including fundamentals) are registered.
+    """
+    registry = ToolRegistry()
+
+    # Register Fundamentals Tool
+    from brain.c4.tools.builtin.fundamentals_tool import register_fundamentals_tool
+    register_fundamentals_tool(registry)
+
+    return registry

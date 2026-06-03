@@ -28,4 +28,6 @@ F. Updated Plan + PlanStep for S4
 - [Brain-24 E2-P3 NVDA with yfinance](https://copilot.microsoft.com/shares/pages/dLC2BtwVrjPPEhXWnBkqM)
 - [Brain-24 B2-B5 Research stages](https://copilot.microsoft.com/shares/pages/XSJc3qhh8Mxve3F2jXp2A)
   - it turns out that the Polygon.io does NOT provide free options data. So, switch to yahoo
-  - 
+
+# 02/06/
+- [Brain-24 C2 Research Engine](https://copilot.microsoft.com/shares/pages/YgDskYqiK7gXKET1cF2cS)

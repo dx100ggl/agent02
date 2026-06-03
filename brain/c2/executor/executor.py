@@ -1,137 +1,102 @@
 # brain/c2/executor/executor.py
-
 from __future__ import annotations
-from typing import Any, Dict, List
 
+from typing import Any, Dict, Optional
+
+from brain.c1.planner.plan import PlanStep, PlanStepKind, ResearchPlan
+from brain.c4.tools.builtin.fundamentals_tool import (
+    FundamentalsRequest,
+    FundamentalsResult,
+    FUNDAMENTALS_TOOL_NAME,
+)
 from brain.c4.tools.registry import ToolRegistry
-from brain.c3.memory.base import MemoryProvider
-from brain.c1.planner.plan import Plan, PlanStep
 
 
-class Executor:
+# ---------------------------------------------------------------------------
+# Execution Context
+# ---------------------------------------------------------------------------
+
+class ExecutionContext:
     """
-    C2 Executor (Brain‑24 version)
-
-    FIXED:
-    - Stores tool results under their tool name (market_data, options_data, etc.)
-    - Does NOT merge tool internals into state.context
-    - Fully compatible with Synthesizer
+    Shared execution context across steps.
+    C4 synthesizer reads from this.
     """
 
-    def __init__(self, tools: ToolRegistry, memory: MemoryProvider):
-        self.tools = tools
-        self.memory = memory
+    def __init__(self) -> None:
+        self._results: Dict[str, Any] = {}
 
-    # ---------------------------------------------------------
-    # Main entry point
-    # ---------------------------------------------------------
-    def execute_plan(self, plan: Plan, state):
-        final_output = None
+    def set_result(self, key: str, value: Any) -> None:
+        self._results[key] = value
 
-        # Ensure context exists
-        if not hasattr(state, "context") or state.context is None:
-            state.context = {}
+    def get_result(self, key: str, default: Any = None) -> Any:
+        return self._results.get(key, default)
 
-        for i, step in enumerate(plan.steps):
-            plan.log("step_start", {
-                "index": i,
-                "description": step.description,
-                "tool": step.tool,
-                "args": step.args,
-            })
 
-            result = self._execute_step(step, state)
-            plan.set_result(i, result)
+# ---------------------------------------------------------------------------
+# Plan Executor
+# ---------------------------------------------------------------------------
 
-            plan.log("step_result", {
-                "index": i,
-                "result": result,
-            })
+class PlanExecutor:
+    def __init__(self, llm: Any, tools: ToolRegistry) -> None:
+        self._llm = llm
+        self._tools = tools
 
-            # Capture final LLM text
-            if isinstance(result, dict) and result.get("text"):
-                final_output = result["text"]
+    def execute(
+        self,
+        plan: ResearchPlan,
+        ctx: Optional[Dict[str, Any]] = None,
+    ) -> ExecutionContext:
 
-        return final_output or "Done."
+        exec_ctx = ExecutionContext()
+        tool_ctx: Dict[str, Any] = ctx or {}
 
-    # ---------------------------------------------------------
-    # Step dispatcher
-    # ---------------------------------------------------------
-    def _execute_step(self, step: PlanStep, state) -> Dict[str, Any]:
-        action = step.tool or step.description.lower()
+        for step in plan.steps:
+            if step.kind == PlanStepKind.FUNDAMENTALS:
+                self._execute_fundamentals_step(step, exec_ctx, tool_ctx)
 
-        if step.tool == "use_tool":
-            return self._execute_tool(step, state)
+            elif step.kind == PlanStepKind.SEARCH:
+                self._execute_search_step(step, exec_ctx, tool_ctx)
 
-        if step.tool == "llm":
-            return self._execute_llm(step, state)
+            elif step.kind == PlanStepKind.SYNTHESIZE:
+                # handled by C4 synthesizer
+                continue
 
-        if step.tool == "think" or action == "think":
-            return {"final": False, "thought": "thinking"}
+        return exec_ctx
 
-        return {"error": True, "message": f"Unknown step/tool: {step.tool}"}
+    # -----------------------------------------------------------------------
+    # Fundamentals step
+    # -----------------------------------------------------------------------
 
-    # ---------------------------------------------------------
-    # TOOL EXECUTION
-    # ---------------------------------------------------------
-    def _execute_tool(self, step: PlanStep, state):
-        tool_name = step.args.get("tool") if step.args else None
-        tool_args = step.args.get("args", {}) if step.args else {}
+    def _execute_fundamentals_step(
+        self,
+        step: PlanStep,
+        exec_ctx: ExecutionContext,
+        tool_ctx: Dict[str, Any],
+    ) -> None:
 
-        if tool_name not in self.tools.tools:
-            return {"error": True, "message": f"Unknown tool: {tool_name}"}
+        tool = self._tools.get(step.tool_name or FUNDAMENTALS_TOOL_NAME)
 
-        tool = self.tools.get(tool_name)
-        result = tool.run(**tool_args)
+        request = FundamentalsRequest(
+            ticker=step.params["ticker"],
+            as_of=step.params.get("as_of"),
+        )
 
-        # ⭐ Store tool result under its tool name
-        state.context[tool_name] = result
+        result: FundamentalsResult = tool.run(
+            llm=self._llm,
+            request=request,
+            ctx=tool_ctx,
+        )
 
-        # ⭐ Memory search support
-        if isinstance(result, list):
-            state.memory_results = result
-        elif isinstance(result, dict) and "results" in result:
-            state.memory_results = result["results"]
+        exec_ctx.set_result("fundamentals", result)
 
-        return result
+    # -----------------------------------------------------------------------
+    # Existing search step (unchanged)
+    # -----------------------------------------------------------------------
 
-    # ---------------------------------------------------------
-    # LLM EXECUTION
-    # ---------------------------------------------------------
-    def _execute_llm(self, step: PlanStep, state):
-        llm_tool = self.tools.get(self.tools.default_llm)
-
-        # Build memory context
-        memory_context = ""
-        if getattr(state, "memory_results", None):
-            lines: List[str] = []
-            for item in state.memory_results:
-                content = item.get("content", "")
-                lines.append(f"- {content}")
-            memory_context = "\n".join(lines)
-
-        prompt_text = step.args.get("prompt", "") if step.args else ""
-
-        payload = {
-            "text": prompt_text,
-            "memory_context": memory_context,
-        }
-
-        raw = llm_tool.run(payload)
-
-        # Normalize LLM output
-        if isinstance(raw, dict):
-            text = (
-                raw.get("text")
-                or raw.get("output")
-                or raw.get("response")
-                or raw.get("answer")
-            )
-        else:
-            text = str(raw)
-
-        return {
-            "final": False,
-            "llm_output": raw,
-            "text": text,
-        }
+    def _execute_search_step(
+        self,
+        step: PlanStep,
+        exec_ctx: ExecutionContext,
+        tool_ctx: Dict[str, Any],
+    ) -> None:
+        ...

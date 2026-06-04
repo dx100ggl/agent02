@@ -52,3 +52,5 @@ C2: Memory‑aware router          ✔️ Done
 C4: Multi‑section synthesizer    ⬅️ You just requested this
 C4: Normalization layer          ⬅️ This is STILL the next step
 C5: Reflection / self‑repair     (later)
+
+- [Brain-24 C4. Fundamentals Tool Module Development, to C4: Normalization layer](https://copilot.microsoft.com/shares/pages/md4xEed3pDqy9SJLZE9Qn)

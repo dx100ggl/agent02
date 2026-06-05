@@ -54,3 +54,58 @@ C4: Normalization layer          ⬅️ This is STILL the next step
 C5: Reflection / self‑repair     (later)
 
 - [Brain-24 C4. Fundamentals Tool Module Development, to C4: Normalization layer](https://copilot.microsoft.com/shares/pages/md4xEed3pDqy9SJLZE9Qn)
+
+I was advised 
+next steps you can take — each one opens a new capability:
+1. Add a “simple query synthesizer”
+Right now simple queries fall back to a generic UNKNOWN‑ticker report.
+We can make that graceful and intentional.
+2. Add debug tracing
+A toggle that prints:
+  plan
+  tool execution order
+  tool outputs
+  normalization
+  synthesis inputs
+  This makes development feel like flying with instruments.
+
+3. Add a CLI
+  brain research AAPL  
+  or
+  brain ask "what’s the macro setup for NVDA"  
+  This is where the system becomes fun to use.
+
+4. Add GitHub Actions CI
+  So every commit runs the 8‑test suite automatically.
+
+5. Add C5 reflection
+  A lightweight reflection layer that improves tool arguments or rewrites the plan.
+
+6. Add memory‑aware routing
+  So the router can say:
+  “you asked about AAPL yesterday — should I include that context?”
+
+you do have a memory‑aware router already.
+
+What you have right now is:
+
+- `DynamicRouter` is constructed with `memory=MemoryService(...)`.
+- **C3** is wired in: `InMemoryStore` + `MemoryRetriever` + `MemoryService`.
+- **C4** has `search_memory_tool.py` / `write_memory_tool.py` sitting in the tool layer.
+- The router can already **route into memory tools** as part of a plan (e.g. “search memory”, “write memory”).
+
+So yes: structurally and architecturally, this is already a **memory‑aware router**.
+
+What I was gesturing at as a “next step” is a deeper level of memory‑awareness, like:
+
+- Using **past research sessions** to bias routing (“you’ve researched AAPL 3 times, reuse that context”).
+- Letting the router **consult memory before planning**, not just as a tool call.
+- Having **C5 reflection** write back “lessons” that the router can later use.
+
+So:
+
+- **Current state**: router is memory‑aware in the sense that C2 can call C3 via tools and MemoryService is fully wired.
+- **Future upgrade**: router becomes history‑aware and pre‑contextual, using memory to shape the plan itself.
+
+If you want, we can open brain/c2/router/dynamic_router.py next and make that second layer explicit: e.g. “if similar query exists in memory, branch to reuse/augment mode instead of full fresh research.”
+

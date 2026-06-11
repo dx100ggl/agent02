@@ -174,6 +174,28 @@ class Orchestrator:
         decision = self.meta_controller.observe_cycle(signal)
         state.meta["meta_decision"] = decision.__dict__
 
+        # -----------------------------------------
+        # Apply C5 → C2 → C1 feedback (cautious mode)
+        # -----------------------------------------
+        actions = getattr(decision, "reflection_actions", None)
+        if actions:
+            for action in actions:
+                if action.get("mode") == "cautious":
+                    # Activate cautious mode in the planner
+                    if hasattr(self.planner, "set_cautious"):
+                        self.planner.set_cautious(True)
+                    state.meta["mode"] = "cautious"
+
+                if action.get("validate_args"):
+                    self.executor.enable_argument_validation = True
+
+                if action.get("avoid_redundancy"):
+                    self.planner.avoid_redundancy = True
+
+                if action.get("enforce_preconditions"):
+                    self.planner.enforce_preconditions = True
+
+
         # 6. Reflection (C5)
         # Build ReflectionInput from available traces and output
         reflection_input = ReflectionInput(

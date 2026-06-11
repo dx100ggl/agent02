@@ -4,8 +4,6 @@ from __future__ import annotations
 from typing import Dict, Iterable, Optional, Any
 from brain.c1.planner.tool_schema import ToolSchema
 
-from brain.c4.tools.base import Tool
-
 # Built‑in tools
 from brain.c4.tools.builtin.market_data_tool import MarketDataTool
 from brain.c4.tools.builtin.technicals_tool import TechnicalsTool
@@ -15,7 +13,7 @@ from brain.c4.tools.builtin.sentiment_tool import SentimentTool
 from brain.c4.tools.builtin.macro_tool import MacroTool
 from brain.c4.tools.builtin.analogs_tool import AnalogsTool
 from brain.c4.tools.builtin.fundamentals_tool import FundamentalsTool
-
+from brain.c4.tools.builtin.verify_tool import VerifyTool
 
 class ToolRegistry:
     """
@@ -43,6 +41,7 @@ class ToolRegistry:
         self.register("macro_data", MacroTool())
         self.register("analogs_data", AnalogsTool())
         self.register("fundamentals_data", FundamentalsTool())
+        self.register("verify_tool", VerifyTool())
 
     # ---------------------------------------------------------
     # Registration API

@@ -20,6 +20,8 @@ class Executor:
         self._tools = tools
         self._synth = synthesizer
         self._llm = llm
+        self.enable_argument_validation = False
+
 
     # ------------------------------------------------------------------
     # Public entrypoint
@@ -134,6 +136,9 @@ class Executor:
     # ------------------------------------------------------------------
     def _safe_tool_call(self, tool, args: Dict[str, Any]) -> Any:
         try:
+            if self.enable_argument_validation:
+                self._validate_args(tool, args)
+
             return tool.run(**args)
         except Exception as e:
             return {"error": True, "message": str(e)}
@@ -167,3 +172,30 @@ Only return the JSON. No commentary.
             pass
 
         return args
+
+    def _validate_args(self, tool, args):
+        """
+        Validate arguments against the tool's declared schema.
+        """
+        schema = getattr(tool, "schema", None)
+        if not schema:
+            return True  # No schema → nothing to validate
+
+        # Required fields
+        required = schema.get("required", [])
+        for field in required:
+            if field not in args:
+                raise ValueError(f"Missing required argument '{field}' for tool '{tool.name}'")
+
+        # Type checks
+        properties = schema.get("properties", {})
+        for key, expected in properties.items():
+            if key in args:
+                if expected == "string" and not isinstance(args[key], str):
+                    raise TypeError(f"Argument '{key}' must be a string for tool '{tool.name}'")
+                if expected == "number" and not isinstance(args[key], (int, float)):
+                    raise TypeError(f"Argument '{key}' must be a number for tool '{tool.name}'")
+                if expected == "boolean" and not isinstance(args[key], bool):
+                    raise TypeError(f"Argument '{key}' must be a boolean for tool '{tool.name}'")
+
+        return True

@@ -21,6 +21,9 @@ class AdaptivePlanner:
         self.meta_mode = "default"
         self.flags = {}
         self.preferences = {}
+        self.cautious_mode = False
+        self.enforce_preconditions = False
+        self.avoid_redundancy = False
 
     # ---------------------------------------------------------
     # Reflection / meta hooks
@@ -30,6 +33,9 @@ class AdaptivePlanner:
 
     def set_preference(self, key: str, weight: float):
         self.preferences[key] = weight
+
+    def set_cautious(self, value: bool):
+        self.cautious_mode = value
 
     # ---------------------------------------------------------
     # Main planning entry point
@@ -157,6 +163,37 @@ class AdaptivePlanner:
             tool="use_tool",
             args={"tool": chosen_tool, "args": args},
         )
+
+        # -----------------------------------------
+        # Cautious Mode: safer, more explicit plans
+        # -----------------------------------------
+        if self.cautious_mode:
+            # 1. Add precondition checks before each step
+            for step in plan.steps:
+                step.preconditions = step.preconditions or []
+                step.preconditions.append("memory_check")
+                step.preconditions.append("input_available")
+
+            # 2. Add a verification step after each tool call
+            verified_steps = []
+            for step in plan.steps:
+                verified_steps.append(step)
+                if step.tool:
+                    verified_steps.append(
+                        step.clone_with(
+                            description=f"Verify result of {step.tool}",
+                            tool="verify_tool",
+                            args={"target": step.tool},
+                        )
+                    )
+            plan.steps = verified_steps
+
+            # 3. Avoid aggressive tool chaining
+            plan.meta["max_chain_length"] = 1
+
+            # 4. Prefer memory retrieval before tool calls
+            plan.meta["prefer_memory"] = True
+
 
     # ---------------------------------------------------------
     # LLM‑only plan

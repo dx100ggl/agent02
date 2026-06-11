@@ -8,10 +8,12 @@ from brain.c1.planner.intent_classifier import IntentClassifier
 from brain.c1.planner.adaptive_planner import AdaptivePlanner
 from brain.c2.router.dynamic_router import DynamicRouter
 from brain.c2.executor.executor import Executor
-from brain.c4.tools.registry import ToolRegistry
-from brain.c5.integration.c3_hooks import MemoryHookContext, C3MemoryHooks
 from brain.c2.meta_controller import MetaController
 from brain.c2.meta_types import MetaSignal
+from brain.c4.tools.registry import ToolRegistry
+from brain.c5.integration.c3_hooks import MemoryHookContext, C3MemoryHooks
+from brain.c5.reflection_engine import ReflectionEngine
+from brain.c5.reflection_types import ReflectionInput
 
 
 class Orchestrator:
@@ -24,6 +26,7 @@ class Orchestrator:
         memory: Optional[Any] = None,
         meta_controller: Optional[MetaController] = None,
         c3_hooks: Optional[C3MemoryHooks] = None,
+        reflection_engine: Optional[ReflectionEngine] = None,
     ):
         self.router = router or DynamicRouter()
         self.tools = tools or ToolRegistry()
@@ -37,6 +40,9 @@ class Orchestrator:
 
         # Only create hooks if memory exists
         self.c3_hooks = c3_hooks or (C3MemoryHooks(memory) if memory is not None else None)
+
+        # C5 reflection engine
+        self.reflection_engine = reflection_engine or ReflectionEngine()
 
         self.state = State()
         self.skill_router = getattr(self.router, "skill_router", None)
@@ -63,7 +69,6 @@ class Orchestrator:
 
         # Otherwise force tool_call mode for research queries
         return Orchestrator._Directive(mode="tool_call", schema="tool_call")
-
 
     def run(self, state: State):
         self.state = state
@@ -122,7 +127,7 @@ class Orchestrator:
 
         # ⭐ Make the plan visible outside the orchestrator
         state.plan = plan
-        
+
         # CH6: attach plan visualization if requested
         if getattr(state, "debug_visualize_plan", False):
             lines = ["=== PLAN ==="]
@@ -132,9 +137,9 @@ class Orchestrator:
                 lines.append(f"  {i+1}. {step.description} [{step.tool}]")
             state.plan_visualization = "\n".join(lines)
 
-
         # 3. Execution (C2)
         try:
+            # If Executor ever returns a trace in future, we can capture it here.
             final_output = self.executor.execute_plan(plan, state)
         except Exception as e:
             error = {"exception": str(e)}
@@ -169,21 +174,26 @@ class Orchestrator:
         decision = self.meta_controller.observe_cycle(signal)
         state.meta["meta_decision"] = decision.__dict__
 
-        # # 6. Reflection summary (C5→C3) – needed for S4 tests
-        # if self.c3_hooks and hasattr(self.c3_hooks, "on_reflection_summary"):
-        #     summary = f"Findings: {final_output}"
-        #     reflection_ctx = MemoryHookContext(
-        #         task_id=state.task_id,
-        #         user_id=getattr(state, "user_id", None),
-        #         phase="reflection",
-        #     )
-        #     self.c3_hooks.on_reflection_summary(summary, context=reflection_ctx)
+        # 6. Reflection (C5)
+        # Build ReflectionInput from available traces and output
+        reflection_input = ReflectionInput(
+            task_id=state.task_id,
+            planner_trace=[{"plan": getattr(plan, "to_dict", lambda: plan)()}] if hasattr(plan, "to_dict") else planner_trace,
+            executor_trace=executor_trace,
+            final_output=final_output,
+            error=error.get("exception") if isinstance(error, dict) else None,
+            plan_trace=getattr(plan, "trace", None),
+        )
+        reflection_output = self.reflection_engine.reflect(reflection_input)
+        state.meta["reflection"] = {
+            "findings": [f.__dict__ for f in reflection_output.findings],
+            "directives": [d.__dict__ for d in reflection_output.directives],
+            "memory_updates": reflection_output.memory_updates,
+        }
 
-        # state.done = True
-        # return final_output
-
-        # 6. Reflection summary (C5→C3)
+        # 7. Reflection summary (C5→C3)
         if self.c3_hooks and hasattr(self.c3_hooks, "on_reflection_summary"):
+            # Keep summary format simple to avoid breaking existing expectations
             summary = f"Findings: {final_output}"
             reflection_ctx = MemoryHookContext(
                 task_id=state.task_id,

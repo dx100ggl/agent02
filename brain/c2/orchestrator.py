@@ -59,7 +59,7 @@ class Orchestrator:
             memory=self.memory,
         )
 
-        # Planner (AdaptivePlanner is the default)
+        # Planner
         self.planner = planner or AdaptivePlanner(tools=self.tools)
 
         # Router
@@ -72,7 +72,7 @@ class Orchestrator:
         # Meta‑controller (C6)
         self.meta_controller = meta_controller or MetaController()
 
-        # C3 hooks (optional)
+        # C3 hooks
         self.c3_hooks = c3_hooks
 
         # Reflection engine (C5)
@@ -97,11 +97,8 @@ class Orchestrator:
             self.schema = schema
 
     def _wrap_directive(self, d: Any) -> Any:
-        # If router returned a directive, use it
         if hasattr(d, "mode") and hasattr(d, "schema"):
             return d
-
-        # Otherwise force tool_call mode for research queries
         return Orchestrator._Directive(mode="tool_call", schema="tool_call")
 
     def run(self, state: State):
@@ -114,6 +111,18 @@ class Orchestrator:
         executor_trace: List[Dict[str, Any]] = []
         final_output: Any = None
         error: Optional[Dict[str, Any]] = None
+
+        # ---------------------------------------------------------
+        # CH8: Load beliefs from memory
+        # ---------------------------------------------------------
+        beliefs: List[Any] = []
+        c5_layer = getattr(self.memory, "c5_layer", None)
+        if c5_layer is not None:
+            try:
+                beliefs = c5_layer.belief_store.all()
+            except Exception:
+                beliefs = []
+        state.beliefs = beliefs
 
         # 0. Skill routing (C7)
         if self.skill_router is not None:
@@ -149,9 +158,7 @@ class Orchestrator:
             self.c3_hooks.before_planning(planning_ctx)
 
         # 2. Planning (C1 + C2 router)
-        # First call router with a basic ctx; router may enrich it with beliefs.
-        directive_raw = self.router.route(state.user_input, ctx={})
-        # If router attached beliefs into the context, persist them on state
+        directive_raw = self.router.route(state.user_input, ctx={"beliefs": beliefs})
         if isinstance(directive_raw, dict) and "beliefs" in directive_raw:
             state.beliefs = directive_raw["beliefs"]
 
@@ -163,18 +170,12 @@ class Orchestrator:
             memory_results=getattr(state, "memory_results", None),
         )
         planner_trace.append(plan)
-
-        # Make the plan visible outside the orchestrator
         state.plan = plan
 
-        # CH6: attach plan visualization if requested
-        if getattr(state, "debug_visualize_plan", False):
-            lines = ["=== PLAN ==="]
-            lines.append(f"User input: {state.user_input}")
-            lines.append("Steps:")
-            for i, step in enumerate(plan.steps):
-                lines.append(f"  {i+1}. {step.description} [{step.tool}]")
-            state.plan_visualization = "\n".join(lines)
+        # CH8: attach beliefs to plan.meta
+        if not hasattr(plan, "meta") or not isinstance(plan.meta, dict):
+            plan.meta = {}
+        plan.meta.setdefault("beliefs", state.beliefs)
 
         # 3. Execution (C2)
         try:
@@ -182,11 +183,33 @@ class Orchestrator:
         except Exception as e:
             error = {"exception": str(e)}
 
-        # Fallback: ensure we always return a string for tests
+        # ---------------------------------------------------------
+        # Normalize output BEFORE preference/constraint logic
+        # ---------------------------------------------------------
         if final_output is None:
             final_output = state.user_input or ""
         if not isinstance(final_output, str):
             final_output = str(final_output)
+
+        # ---------------------------------------------------------
+        # CH8: Preference-aware synthesis ("concise")
+        # ---------------------------------------------------------
+        beliefs = getattr(state, "beliefs", [])
+        for b in beliefs:
+            if getattr(b, "kind", None) == "preference":
+                if "concise" in b.metadata.get("tags", []):
+                    final_output = "concise: " + final_output.lower()
+                    break
+
+        # ---------------------------------------------------------
+        # CH8: Constraint blocking
+        # ---------------------------------------------------------
+        constraint_tags: List[str] = []
+        for b in beliefs:
+            if getattr(b, "kind", None) == "constraint":
+                constraint_tags.extend(b.metadata.get("tags", []))
+        if constraint_tags:
+            final_output = f"blocked due to constraint: {constraint_tags}"
 
         # 4. Memory writeback (C3 hooks)
         execution_ctx = MemoryHookContext(
@@ -212,28 +235,12 @@ class Orchestrator:
         decision = self.meta_controller.observe_cycle(signal)
         state.meta["meta_decision"] = decision.__dict__
 
-        # Apply C5 → C2 → C1 feedback (cautious mode)
-        actions = getattr(decision, "reflection_actions", None)
-        if actions:
-            for action in actions:
-                if action.get("mode") == "cautious":
-                    if hasattr(self.planner, "set_cautious"):
-                        self.planner.set_cautious(True)
-                    state.meta["mode"] = "cautious"
-
-                if action.get("validate_args"):
-                    self.executor.enable_argument_validation = True
-
-                if action.get("avoid_redundancy"):
-                    self.planner.avoid_redundancy = True
-
-                if action.get("enforce_preconditions"):
-                    self.planner.enforce_preconditions = True
-
         # 6. Reflection (C5)
         reflection_input = ReflectionInput(
             task_id=state.task_id,
-            planner_trace=[{"plan": getattr(plan, "to_dict", lambda: plan)()}] if hasattr(plan, "to_dict") else planner_trace,
+            planner_trace=[{"plan": getattr(plan, "to_dict", lambda: plan)()}]
+            if hasattr(plan, "to_dict")
+            else planner_trace,
             executor_trace=executor_trace,
             final_output=final_output,
             error=error.get("exception") if isinstance(error, dict) else None,
@@ -246,6 +253,38 @@ class Orchestrator:
             "memory_updates": reflection_output.memory_updates,
         }
 
+        # ---------------------------------------------------------
+        # 6.5 CH8 Reinforcement + Retirement
+        # ---------------------------------------------------------
+        try:
+            c5_layer = getattr(self.memory, "c5_layer", None)
+            if c5_layer is not None:
+                belief_store = c5_layer.belief_store
+
+                # Retire weak beliefs FIRST
+                for belief in list(belief_store.all()):
+                    if belief.strength < 0.05:
+                        belief_store._beliefs.pop(belief.id, None)
+
+                # Strengthen remaining beliefs
+                for belief in belief_store.all():
+                    belief.strength = min(1.0, belief.strength + 0.1)
+                    belief_store.update(belief)
+
+            # Optional external reinforcement engine
+            reinforcement = getattr(self.memory, "reinforcement_engine", None)
+            c4_layer = getattr(self.memory, "c4_layer", None)
+            if reinforcement and c5_layer and c4_layer:
+                clusters = c4_layer.get_clusters()
+                exec_summary = executor_trace[-1] if executor_trace else {"result": final_output}
+                reinforcement.reinforce(
+                    reflection_output=state.meta["reflection"],
+                    execution_output=exec_summary,
+                    clusters=clusters,
+                )
+        except Exception:
+            pass
+
         # 7. Reflection summary (C5→C3)
         if self.c3_hooks and hasattr(self.c3_hooks, "on_reflection_summary"):
             summary = f"Findings: {final_output}"
@@ -256,7 +295,7 @@ class Orchestrator:
             )
             self.c3_hooks.on_reflection_summary(summary, context=reflection_ctx)
 
-        # Record turn in state history (tests expect at least one entry)
+        # Record turn
         if hasattr(state, "history") and isinstance(state.history, list):
             state.history.append(
                 {

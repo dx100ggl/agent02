@@ -9,57 +9,26 @@ from ..store import MemoryStore
 
 
 def cosine_similarity(a: np.ndarray, b: np.ndarray) -> float:
-    """Compute cosine similarity between two embeddings."""
     denom = (np.linalg.norm(a) * np.linalg.norm(b))
     if denom == 0:
         return 0.0
     return float(np.dot(a, b) / denom)
 
 
-class ConsolidationEngine:
+# ============================================================
+# ORGAN 1 — Trace Normalizer
+# ============================================================
+
+class TraceNormalizer:
     """
-    Brain‑24 Memory Consolidation Organ.
-    Cleans, merges, resolves, generalises, promotes, links, and prunes memory.
+    C3 Normalization organ.
+    Turns raw traces into canonical, embedded traces.
     """
 
-    def __init__(
-        self,
-        store: MemoryStore,
-        embedder: EmbeddingService,
-        duplicate_threshold: float = 0.88,
-        strong_duplicate_threshold: float = 0.93,
-    ):
-        self.store = store
+    def __init__(self, embedder: EmbeddingService):
         self.embedder = embedder
-        self.changelog = []
 
-        self.DUPLICATE_THRESHOLD = duplicate_threshold
-        self.STRONG_DUPLICATE = strong_duplicate_threshold
-
-    # ----------------------------------------------------------------------
-    # PUBLIC API
-    # ----------------------------------------------------------------------
-
-    def consolidate(self, new_traces: list[dict]):
-        self.changelog = []
-        normalized = [self._normalize_trace(t) for t in new_traces]
-
-        for trace in normalized:
-            self._process_trace(trace)
-
-        self._pattern_extraction()
-        self._prune()
-
-        return {
-            "graph": self.store.graph_snapshot(),
-            "changelog": self.changelog,
-        }
-
-    # ----------------------------------------------------------------------
-    # NORMALIZATION
-    # ----------------------------------------------------------------------
-
-    def _normalize_trace(self, trace: dict) -> dict:
+    def normalize(self, trace: dict) -> dict:
         content = trace["content"]
         embedding = self.embedder.embed(content)
 
@@ -71,52 +40,63 @@ class ConsolidationEngine:
             "embedding": embedding,
         }
 
-    # ----------------------------------------------------------------------
-    # PROCESSING
-    # ----------------------------------------------------------------------
 
-    def _process_trace(self, trace: dict):
-        """Decide whether to merge or create a new node."""
+# ============================================================
+# ORGAN 2 — Duplicate Resolver
+# ============================================================
+
+class DuplicateResolver:
+    """
+    C3 Duplicate resolution organ.
+    Decides MERGE vs CREATE for each normalized trace.
+    """
+
+    def __init__(
+        self,
+        store: MemoryStore,
+        duplicate_threshold: float,
+        strong_duplicate_threshold: float,
+        semantic_match_fn,
+    ):
+        self.store = store
+        self.duplicate_threshold = duplicate_threshold
+        self.strong_duplicate_threshold = strong_duplicate_threshold
+        self.semantic_match_fn = semantic_match_fn
+
+    def process(self, trace: dict, changelog: list):
         candidates = self.store.find_similar(
             trace["embedding"],
-            self.DUPLICATE_THRESHOLD,
+            self.duplicate_threshold,
         )
 
         if not candidates:
-            self._create_node(trace)
+            self._create_node(trace, changelog)
             return
 
         best_node, score = max(candidates, key=lambda x: x[1])
 
-        # FIX: strong duplicate only if content is identical
-        if (
-            score >= self.STRONG_DUPLICATE
-            and best_node["content"] == trace["content"]
-        ):
-            self._merge(best_node, trace)
+        # Strong duplicate only if content identical
+        if score >= self.strong_duplicate_threshold and best_node["content"] == trace["content"]:
+            self._merge(best_node, trace, changelog)
             return
 
-        # weak duplicate → semantic check
-        if self._semantic_match(best_node, trace):
-            self._merge(best_node, trace)
+        # Weak duplicate → semantic check
+        if self.semantic_match_fn(best_node, trace):
+            self._merge(best_node, trace, changelog)
         else:
-            self._create_node(trace)
+            self._create_node(trace, changelog)
 
-    # ----------------------------------------------------------------------
-    # MERGING
-    # ----------------------------------------------------------------------
-
-    def _merge(self, node: dict, trace: dict):
+    def _merge(self, node: dict, trace: dict, changelog: list):
         node["evidence"].append(trace)
         node["timestamp_updated"] = datetime.utcnow()
 
-        self.changelog.append(
+        changelog.append(
             f"[MERGE] Trace {trace['id']} merged into node {node['id']}"
         )
 
         self.store.update_node(node)
 
-    def _create_node(self, trace: dict):
+    def _create_node(self, trace: dict, changelog: list):
         node = {
             "id": trace["id"],
             "type": trace["type"],
@@ -130,32 +110,72 @@ class ConsolidationEngine:
 
         self.store.add_node(node)
 
-        self.changelog.append(
+        changelog.append(
             f"[CREATE] New node {node['id']} created"
         )
 
-    # ----------------------------------------------------------------------
-    # SEMANTIC MATCHING
-    # ----------------------------------------------------------------------
+
+# ============================================================
+# C3 CONSOLIDATION ENGINE (now orchestrating organs)
+# ============================================================
+
+class ConsolidationEngine:
+    """
+    Brain‑24 Memory Consolidation Organ.
+    Now orchestrates modular organs.
+    """
+
+    def __init__(
+        self,
+        store: MemoryStore,
+        embedder: EmbeddingService,
+        duplicate_threshold: float = 0.88,
+        strong_duplicate_threshold: float = 0.93,
+    ):
+        self.store = store
+        self.embedder = embedder
+        self.changelog: list[str] = []
+
+        # Organs
+        self.normalizer = TraceNormalizer(embedder)
+        self.duplicate_resolver = DuplicateResolver(
+            store=store,
+            duplicate_threshold=duplicate_threshold,
+            strong_duplicate_threshold=strong_duplicate_threshold,
+            semantic_match_fn=self._semantic_match,
+        )
+
+    # ----------------------------------------------------------
+    # PUBLIC API
+    # ----------------------------------------------------------
+
+    def consolidate(self, new_traces: list[dict]):
+        self.changelog = []
+
+        normalized = [self.normalizer.normalize(t) for t in new_traces]
+
+        for trace in normalized:
+            self.duplicate_resolver.process(trace, self.changelog)
+
+        self._pattern_extraction()
+        self._prune()
+
+        return {
+            "graph": self.store.graph_snapshot(),
+            "changelog": self.changelog,
+        }
+
+    # ----------------------------------------------------------
+    # SEMANTIC MATCHING (unchanged)
+    # ----------------------------------------------------------
 
     def _semantic_match(self, node: dict, trace: dict) -> bool:
-        """
-        Deterministic weak-duplicate rule.
-        Two traces are considered semantically related if they share at least
-        one meaningful keyword after stopword removal and synonym expansion.
-
-        This avoids hardcoding domain concepts while still producing stable,
-        test-friendly behavior.
-        """
-
         content_a = node["content"].lower()
         content_b = trace["content"].lower()
 
-        # Tokenize
         words_a = set(content_a.split())
         words_b = set(content_b.split())
 
-        # Remove filler words
         stop = {
             "user", "likes", "prefers", "enjoys", "while", "are", "is",
             "the", "a", "to", "of", "and", "for", "in", "on", "with",
@@ -167,7 +187,6 @@ class ConsolidationEngine:
         if not words_a or not words_b:
             return False
 
-        # Lightweight synonym expansion (general, not domain-specific)
         synonyms = {
             "quiet": {"silence", "silent", "calm", "peaceful"},
             "silence": {"quiet", "silent"},
@@ -184,19 +203,14 @@ class ConsolidationEngine:
         expanded_a = expand(words_a)
         expanded_b = expand(words_b)
 
-        # Weak duplicate rule: share at least one expanded keyword
         return len(expanded_a & expanded_b) > 0
 
-    # ----------------------------------------------------------------------
-    # PATTERN EXTRACTION
-    # ----------------------------------------------------------------------
+    # ----------------------------------------------------------
+    # FUTURE ORGANS
+    # ----------------------------------------------------------
 
     def _pattern_extraction(self):
         pass
-
-    # ----------------------------------------------------------------------
-    # PRUNING
-    # ----------------------------------------------------------------------
 
     def _prune(self):
         pass

@@ -1,5 +1,8 @@
-from typing import List
+# brain/c5/integration/c2_hooks.py
+
+from typing import List, Dict, Any
 from brain.c5.reflection_types import ReflectionDirective
+from brain.c3.memory.memory_service import MemoryService
 
 
 def apply_directives_to_planner(planner, directives: List[ReflectionDirective]):
@@ -26,3 +29,26 @@ def apply_directives_to_planner(planner, directives: List[ReflectionDirective]):
             planner.meta_mode = "more_cautious"
 
     return planner
+
+
+# ----------------------------------------------------------------------
+# NEW: Inject C5 beliefs into planner context
+# ----------------------------------------------------------------------
+
+def inject_beliefs_into_planner_context(
+    memory: MemoryService,
+    planner_context: Dict[str, Any],
+) -> Dict[str, Any]:
+    """
+    Enrich planner context with stable beliefs from C5.
+    This is safe, optional, and does not modify planner behavior directly.
+    """
+
+    beliefs = memory.get_beliefs()
+
+    # Expose beliefs as simple strings for now
+    planner_context["stable_beliefs"] = [
+        b.content for b in beliefs
+    ]
+
+    return planner_context

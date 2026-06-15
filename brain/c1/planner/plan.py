@@ -1,5 +1,3 @@
-# brain/c1/planner/plan.py
-
 from __future__ import annotations
 
 from dataclasses import dataclass
@@ -10,30 +8,8 @@ from brain.c4.tools.builtin.fundamentals_tool import FUNDAMENTALS_TOOL_NAME
 
 
 # ---------------------------------------------------------------------------
-# Step Kinds
+# Step Kinds (single unified enum)
 # ---------------------------------------------------------------------------
-
-class PlanStepKind(str, Enum):
-    SEARCH = "search"
-    TOOL = "tool"
-    SYNTHESIZE = "synthesize"
-    FUNDAMENTALS = "fundamentals"   # <-- NEW
-
-
-# ---------------------------------------------------------------------------
-# Plan Step + Plan
-# ---------------------------------------------------------------------------
-
-@dataclass
-class PlanStep:
-    kind: PlanStepKind
-    tool_name: Optional[str]
-    params: Dict[str, Any]
-
-
-@dataclass
-class ResearchPlan:
-    steps: List[PlanStep]
 
 class PlanStepKind(str, Enum):
     SEARCH = "search"
@@ -49,7 +25,63 @@ class PlanStepKind(str, Enum):
 
 
 # ---------------------------------------------------------------------------
-# Fundamentals‑aware plan builder
+# Plan Step (with backward‑compatible fields)
+# ---------------------------------------------------------------------------
+
+@dataclass
+class PlanStep:
+    kind: PlanStepKind
+    tool_name: Optional[str]
+    params: Dict[str, Any]
+
+    # Legacy compatibility fields
+    description: str = ""
+    tool: Optional[str] = None
+
+    def __post_init__(self):
+        # Old planners expect step.tool
+        if self.tool is None:
+            self.tool = self.tool_name
+
+        # Old planners expect step.description to be meaningful
+        if not self.description:
+            # Default description based on kind/tool
+            if self.tool_name:
+                self.description = f"{self.kind.value}: {self.tool_name}"
+            else:
+                self.description = self.kind.value
+
+
+# ---------------------------------------------------------------------------
+# Research Plan (modern plan with legacy API)
+# ---------------------------------------------------------------------------
+
+@dataclass
+class ResearchPlan:
+    steps: List[PlanStep]
+    meta: Dict[str, Any] = None
+
+    def __post_init__(self):
+        if self.meta is None:
+            self.meta = {}
+
+    def add_step(self, description: str, tool: str, args: Dict[str, Any]):
+        """
+        Legacy API used by AdaptivePlanner.
+        Converts old-style add_step(...) into a PlanStep.
+        """
+        step = PlanStep(
+            kind=PlanStepKind.TOOL if tool != "llm" else PlanStepKind.SYNTHESIZE,
+            tool_name=tool,
+            params=args,
+            description=description,
+            tool=tool,
+        )
+        self.steps.append(step)
+
+
+# ---------------------------------------------------------------------------
+# Fundamentals‑only plan
 # ---------------------------------------------------------------------------
 
 def build_fundamentals_plan(
@@ -57,126 +89,119 @@ def build_fundamentals_plan(
     intent: str,
     as_of: Optional[str] = None,
 ) -> ResearchPlan:
-    """
-    Minimal C1 plan builder for fundamentals → synthesis.
-    C2 executor + C4 synthesizer will consume this.
-    """
+
     steps: List[PlanStep] = []
 
-    # Step 1: Fundamentals tool
     steps.append(
         PlanStep(
             kind=PlanStepKind.FUNDAMENTALS,
             tool_name=FUNDAMENTALS_TOOL_NAME,
-            params={
-                "ticker": ticker,
-                "as_of": as_of,
-            },
+            params={"ticker": ticker, "as_of": as_of},
+            description="Fetch fundamentals",
         )
     )
 
-    # Step 2: Synthesis
     steps.append(
         PlanStep(
             kind=PlanStepKind.SYNTHESIZE,
             tool_name=None,
-            params={
-                "ticker": ticker,
-                "intent": intent,
-            },
+            params={"ticker": ticker, "intent": intent},
+            description="Synthesize fundamentals",
         )
     )
 
     return ResearchPlan(steps=steps)
+
+
+# ---------------------------------------------------------------------------
+# Full multi‑tool research plan
+# ---------------------------------------------------------------------------
 
 def build_full_research_plan(
     ticker: str,
     intent: str,
     as_of: Optional[str] = None,
 ) -> ResearchPlan:
-    """
-    Multi‑tool research plan:
-    1. Market data
-    2. Technicals
-    3. Options chain
-    4. Sentiment
-    5. Macro
-    6. Analogs
-    7. Fundamentals
-    8. Synthesis
-    """
+
     steps: List[PlanStep] = []
 
-    # 1. Market data
     steps.append(
         PlanStep(
             kind=PlanStepKind.MARKET_DATA,
             tool_name="market_data",
             params={"ticker": ticker},
+            description="Fetch market data",
         )
     )
 
-    # 2. Technicals
     steps.append(
         PlanStep(
             kind=PlanStepKind.TECHNICALS,
             tool_name="technicals_data",
             params={"ticker": ticker},
+            description="Fetch technical indicators",
         )
     )
 
-    # 3. Options chain
     steps.append(
         PlanStep(
             kind=PlanStepKind.OPTIONS,
             tool_name="options_data",
             params={"ticker": ticker},
+            description="Fetch options chain",
         )
     )
 
-    # 4. Sentiment
     steps.append(
         PlanStep(
             kind=PlanStepKind.SENTIMENT,
             tool_name="sentiment_data",
             params={"ticker": ticker},
+            description="Fetch sentiment data",
         )
     )
 
-    # 5. Macro
     steps.append(
         PlanStep(
             kind=PlanStepKind.MACRO,
             tool_name="macro_data",
             params={"ticker": ticker},
+            description="Fetch macro indicators",
         )
     )
 
-    # 6. Analogs
     steps.append(
         PlanStep(
             kind=PlanStepKind.ANALOGS,
             tool_name="analogs_data",
             params={"ticker": ticker},
+            description="Search historical analogs",
         )
     )
 
-    # 7. Fundamentals
     steps.append(
         PlanStep(
             kind=PlanStepKind.FUNDAMENTALS,
             tool_name="fundamentals_data",
             params={"ticker": ticker, "as_of": as_of},
+            description="Fetch fundamentals",
         )
     )
 
-    # 8. Synthesis
     steps.append(
         PlanStep(
             kind=PlanStepKind.SYNTHESIZE,
             tool_name=None,
             params={"ticker": ticker, "intent": intent},
+            description="Synthesize research",
         )
     )
 
     return ResearchPlan(steps=steps)
+
+
+# ---------------------------------------------------------------------------
+# Compatibility alias
+# ---------------------------------------------------------------------------
+
+Plan = ResearchPlan

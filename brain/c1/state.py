@@ -1,37 +1,43 @@
 # brain/c1/state.py
 
 from __future__ import annotations
-import uuid
+from typing import Any, Dict, List, Optional
 
-class BrainState:
+
+class State:
     """
-    Canonical state object passed through C1 → C2 → C5.
-    Compatible with legacy S4 tests expecting:
-      - task_id
-      - user_id
-      - meta
-      - history
-      - done
+    Unified state object used across C1 → C2 → C3 → C5.
+    Tests expect:
+        State(task_id="t1", user_input="hello world")
     """
 
-    def __init__(self, user_input: str = "", memory=None, context=None):
-        self.user_input = user_input or ""
-        self.memory = memory
-        self.context = context or {}
+    def __init__(
+        self,
+        user_input: str,
+        task_id: Optional[str] = None,
+        user_id: Optional[str] = None,
+        memory_results: Optional[Any] = None,
+    ):
+        # Core fields
+        self.user_input = user_input
+        self.task_id = task_id
+        self.user_id = user_id
 
-        # S4 compatibility fields
-        self.task_id = str(uuid.uuid4())     # required by orchestrator + tests
-        self.user_id = "default_user"        # tests expect this to exist
+        # Memory retrieval results (optional)
+        self.memory_results = memory_results
 
-        # Brain-24 fields
-        self.meta = {}
-        self.history = []
-        self.tool_results = {}
-        self.done = False
+        # Execution context
+        self.context: Dict[str, Any] = {}
 
-    def add_history(self, message):
-        self.history.append(message)
+        # Planner + executor traces
+        self.plan = None
+        self.plan_visualization: Optional[str] = None
 
+        # Metadata (intent, reflection, meta decisions, etc.)
+        self.meta: Dict[str, Any] = {}
 
-# Backward compatibility alias
-State = BrainState
+        # History of turns (tests expect this to exist)
+        self.history: List[Dict[str, Any]] = []
+
+        # Completion flag
+        self.done: bool = False

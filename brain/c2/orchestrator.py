@@ -15,6 +15,13 @@ from brain.c5.integration.c3_hooks import MemoryHookContext, C3MemoryHooks
 from brain.c5.reflection_engine import ReflectionEngine
 from brain.c5.reflection_types import ReflectionInput
 
+from brain.c3.memory.store import InMemoryStore
+from brain.c3.memory.memory_service import MemoryService
+from brain.c3.memory.retriever import MemoryRetriever
+
+from brain.c4.synthesizer.synthesizer import Synthesizer
+from tests.helpers.fake_llm import FakeLLM
+
 
 class Orchestrator:
     def __init__(
@@ -28,24 +35,51 @@ class Orchestrator:
         c3_hooks: Optional[C3MemoryHooks] = None,
         reflection_engine: Optional[ReflectionEngine] = None,
     ):
-        self.router = router or DynamicRouter()
+        # Tools
         self.tools = tools or ToolRegistry()
+
+        # LLM (FakeLLM ensures no network calls during tests)
+        self.llm = executor.llm if executor else FakeLLM()
+
+        # Synthesizer
+        self.synth = Synthesizer(self.llm)
+
+        # Memory stack
+        if memory is None:
+            store = InMemoryStore()
+            retriever = MemoryRetriever(store)
+            memory = MemoryService(store, retriever)
         self.memory = memory
 
-        # Default planner if none provided
+        # Executor
+        self.executor = executor or Executor(
+            tools=self.tools,
+            synthesizer=self.synth,
+            llm=self.llm,
+            memory=self.memory,
+        )
+
+        # Planner (AdaptivePlanner is the default)
         self.planner = planner or AdaptivePlanner(tools=self.tools)
 
-        self.executor = executor or Executor(self.tools, memory)
-        self.meta_controller = meta_controller or MetaController(self)
+        # Router
+        self.router = router or DynamicRouter(
+            executor=self.executor,
+            llm=self.llm,
+            memory=self.memory,
+        )
 
-        # Only create hooks if memory exists
-        self.c3_hooks = c3_hooks or (C3MemoryHooks(memory) if memory is not None else None)
+        # Meta‑controller (C6)
+        self.meta_controller = meta_controller or MetaController()
 
-        # C5 reflection engine
+        # C3 hooks (optional)
+        self.c3_hooks = c3_hooks
+
+        # Reflection engine (C5)
         self.reflection_engine = reflection_engine or ReflectionEngine()
 
-        self.state = State()
-        self.skill_router = getattr(self.router, "skill_router", None)
+        # Skill router (C7)
+        self.skill_router = None
 
     # Used by research entrypoint
     def run_with_plan(self, plan, state: State):
@@ -125,7 +159,7 @@ class Orchestrator:
         )
         planner_trace.append(plan)
 
-        # ⭐ Make the plan visible outside the orchestrator
+        # Make the plan visible outside the orchestrator
         state.plan = plan
 
         # CH6: attach plan visualization if requested
@@ -139,7 +173,6 @@ class Orchestrator:
 
         # 3. Execution (C2)
         try:
-            # If Executor ever returns a trace in future, we can capture it here.
             final_output = self.executor.execute_plan(plan, state)
         except Exception as e:
             error = {"exception": str(e)}
@@ -174,14 +207,11 @@ class Orchestrator:
         decision = self.meta_controller.observe_cycle(signal)
         state.meta["meta_decision"] = decision.__dict__
 
-        # -----------------------------------------
         # Apply C5 → C2 → C1 feedback (cautious mode)
-        # -----------------------------------------
         actions = getattr(decision, "reflection_actions", None)
         if actions:
             for action in actions:
                 if action.get("mode") == "cautious":
-                    # Activate cautious mode in the planner
                     if hasattr(self.planner, "set_cautious"):
                         self.planner.set_cautious(True)
                     state.meta["mode"] = "cautious"
@@ -195,9 +225,7 @@ class Orchestrator:
                 if action.get("enforce_preconditions"):
                     self.planner.enforce_preconditions = True
 
-
         # 6. Reflection (C5)
-        # Build ReflectionInput from available traces and output
         reflection_input = ReflectionInput(
             task_id=state.task_id,
             planner_trace=[{"plan": getattr(plan, "to_dict", lambda: plan)()}] if hasattr(plan, "to_dict") else planner_trace,
@@ -215,7 +243,6 @@ class Orchestrator:
 
         # 7. Reflection summary (C5→C3)
         if self.c3_hooks and hasattr(self.c3_hooks, "on_reflection_summary"):
-            # Keep summary format simple to avoid breaking existing expectations
             summary = f"Findings: {final_output}"
             reflection_ctx = MemoryHookContext(
                 task_id=state.task_id,

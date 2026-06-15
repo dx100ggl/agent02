@@ -1,7 +1,7 @@
 # brain/c1/planner/adaptive_planner.py
 
 from typing import Dict, Any, Optional
-from brain.c1.planner.plan import Plan
+from brain.c1.planner.plan import Plan, PlanStep, PlanStepKind
 from brain.c1.planner.tool_schema import ToolSchema
 
 
@@ -41,10 +41,14 @@ class AdaptivePlanner:
     # Main planning entry point
     # ---------------------------------------------------------
     def create_plan(self, user_input: str, directive, memory_results=None) -> Plan:
-        plan = Plan(user_input=user_input)
+        plan = Plan(steps=[])
 
-        mode = directive.mode.value
-        schema = directive.schema
+        mode = directive.mode.value if directive else "default"
+
+        if directive is None:
+            schema = None
+        else:
+            schema = directive.schema
 
         plan.meta["mode"] = mode
         plan.meta["schema"] = schema
@@ -61,6 +65,27 @@ class AdaptivePlanner:
             self._build_tool_call_plan(plan, user_input)
         else:
             self._build_llm_plan(plan, user_input)
+
+        # ---------------------------------------------------------
+        # Cautious mode: insert verification steps after each tool
+        # ---------------------------------------------------------
+        if self.cautious_mode:
+            new_steps = []
+            for step in plan.steps:
+                new_steps.append(step)
+
+                # Only add verification after tool steps
+                if step.tool:
+                    verify_step = PlanStep(
+                        kind=PlanStepKind.TOOL,
+                        tool_name="verify_tool",
+                        params={"target": step.tool},
+                        description=f"Verify result of {step.tool}",
+                        tool="verify_tool",
+                    )
+                    new_steps.append(verify_step)
+
+            plan.steps = new_steps
 
         return plan
 

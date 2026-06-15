@@ -111,7 +111,29 @@ If you want, we can open brain/c2/router/dynamic_router.py next and make that se
 
 # 11/06/26
 
+##  [Brain-24, C5 reflection](https://copilot.microsoft.com/shares/pages/D5BQxKd5Hp8gBcYEQ2JMb)
+
+Clarification
+
+- C1–C5: Fixed cognitive layers.
+- Ch6–Ch7: Development chapters describing upgrades to C2 
+  - planner control (ch6) 
+  - evaluation (ch7).
+
+Ch8: Next chapter, memory consolidation.
+
+This is about the complection of 
+- Ch6: C2 meta-planner
+- Ch7: C2 meta-evaluator
+Check the deliverables of the summary page.
+
+## My notes:
 Return from a wonderful holiday in Barcelona.
+Below are the git commits.
 - finished the C5 reflection and moving to implement the "Cautious Mode" for Brain-24, 
 - The Cautious Mode activates the C5 -> C2 -> C1 feedback loop
-- 
+- Implement the redundancy-avoidance in the planner.
+
+# 15/06/26
+
+## [Brain-24]

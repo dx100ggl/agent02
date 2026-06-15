@@ -2,18 +2,21 @@
 
 class FakeLLM:
     """
-    Deterministic fake LLM for tests.
+    Minimal LLM stub used in tests.
+    Must support:
+        - complete(prompt)
+        - run(args)
+        - __call__(prompt)
     """
 
-    def __call__(self, prompt: str) -> str:
-        # Used by IntentClassifier
-        if "write_memory" in prompt:
-            return "normal_llm"
-        return "normal_llm"
+    def complete(self, prompt: str) -> str:
+        # Always return a deterministic JSON dict for argument repair
+        return '{"repaired": true}'
 
-    def run(self, payload):
-        # Used by Synthesizer
-        text = payload.get("text", "")
-        return {
-            "text": f"[FAKE LLM OUTPUT]\n{text}\n[END]"
-        }
+    def run(self, args):
+        # Tools expect run({"text": ...})
+        text = args.get("text") if isinstance(args, dict) else str(args)
+        return {"text": f"FAKE: {text}"}
+
+    def __call__(self, prompt: str) -> str:
+        return self.complete(prompt)

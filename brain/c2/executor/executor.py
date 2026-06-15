@@ -5,23 +5,25 @@ import json
 from typing import Any, Dict
 
 from brain.c1.planner.plan import ResearchPlan, PlanStep, PlanStepKind
-from brain.llm.lmstudio_llm import LMStudioLLM
 
 
 class Executor:
     """
     Deterministic C2 executor (Option A).
     Executes steps in order.
-    If a tool fails, asks the LLM for a repair.
-    Retries once with repaired arguments.
+    If a tool fails, asks the LLM for a repair — BUT ONLY when
+    enable_argument_validation=True (Orchestrator turns this on).
+    DynamicRouter tests keep this disabled, so no LLM calls occur.
     """
 
-    def __init__(self, tools, synthesizer, llm: LMStudioLLM):
+    def __init__(self, tools=None, synthesizer=None, llm=None, memory=None):
         self._tools = tools
         self._synth = synthesizer
         self._llm = llm
-        self.enable_argument_validation = False
+        self.memory = memory
 
+        # OFF by default — DynamicRouter tests rely on this
+        self.enable_argument_validation = False
 
     # ------------------------------------------------------------------
     # Public entrypoint
@@ -53,24 +55,16 @@ class Executor:
 
         if kind == PlanStepKind.SEARCH:
             return self._execute_search(step)
-        
-        if kind == PlanStepKind.MARKET_DATA:
-            return self._execute_tool(step)
 
-        if kind == PlanStepKind.TECHNICALS:
+        if kind in {
+            PlanStepKind.MARKET_DATA,
+            PlanStepKind.TECHNICALS,
+            PlanStepKind.OPTIONS,
+            PlanStepKind.SENTIMENT,
+            PlanStepKind.MACRO,
+            PlanStepKind.ANALOGS,
+        }:
             return self._execute_tool(step)
-
-        if kind == PlanStepKind.OPTIONS:
-            return self._execute_tool(step)
-
-        if kind == PlanStepKind.SENTIMENT:
-            return self._execute_tool(step)
-
-        if kind == PlanStepKind.MACRO:
-            return self._execute_tool(step)
-
-        if kind == PlanStepKind.ANALOGS:
-            return self._execute_tool(step)        
 
         return {"step": step, "error": True, "message": f"Unknown step kind: {kind}"}
 
@@ -82,10 +76,16 @@ class Executor:
         args = step.params
 
         result = self._safe_tool_call(tool, args)
+
+        # Success
         if not self._is_failure(result):
             return {"step": step, "result": result, "repaired": False}
 
-        # Repair attempt
+        # Failure — but repair disabled → return failure immediately
+        if not self.enable_argument_validation:
+            return {"step": step, "result": result, "repaired": False}
+
+        # Failure — repair enabled
         repaired_args = self._repair_args(step, args, result)
         result2 = self._safe_tool_call(tool, repaired_args)
 
@@ -111,9 +111,16 @@ class Executor:
         args = step.params
 
         result = self._safe_tool_call(tool, args)
+
+        # Success
         if not self._is_failure(result):
             return {"step": step, "result": result, "repaired": False}
 
+        # Failure — but repair disabled → return failure immediately
+        if not self.enable_argument_validation:
+            return {"step": step, "result": result, "repaired": False}
+
+        # Failure — repair enabled
         repaired_args = self._repair_args(step, args, result)
         result2 = self._safe_tool_call(tool, repaired_args)
 
@@ -128,7 +135,6 @@ class Executor:
     # Search step (optional)
     # ------------------------------------------------------------------
     def _execute_search(self, step: PlanStep) -> Dict[str, Any]:
-        # Placeholder: you can wire in a search tool later
         return {"step": step, "result": {"search": "not implemented"}, "repaired": False}
 
     # ------------------------------------------------------------------
@@ -136,10 +142,17 @@ class Executor:
     # ------------------------------------------------------------------
     def _safe_tool_call(self, tool, args: Dict[str, Any]) -> Any:
         try:
-            if self.enable_argument_validation:
-                self._validate_args(tool, args)
+            # Tools may or may not implement normalize_args
+            if hasattr(tool, "normalize_args"):
+                normalized = tool.normalize_args(args)
+            else:
+                normalized = args
 
-            return tool.run(**args)
+            if self.enable_argument_validation:
+                self._validate_args(tool, normalized)
+
+            return tool.run(normalized)
+
         except Exception as e:
             return {"error": True, "message": str(e)}
 
@@ -173,21 +186,19 @@ Only return the JSON. No commentary.
 
         return args
 
+    # ------------------------------------------------------------------
+    # Argument validation
+    # ------------------------------------------------------------------
     def _validate_args(self, tool, args):
-        """
-        Validate arguments against the tool's declared schema.
-        """
         schema = getattr(tool, "schema", None)
         if not schema:
-            return True  # No schema → nothing to validate
+            return True
 
-        # Required fields
         required = schema.get("required", [])
         for field in required:
             if field not in args:
                 raise ValueError(f"Missing required argument '{field}' for tool '{tool.name}'")
 
-        # Type checks
         properties = schema.get("properties", {})
         for key, expected in properties.items():
             if key in args:

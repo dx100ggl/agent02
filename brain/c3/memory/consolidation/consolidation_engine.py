@@ -2,7 +2,7 @@
 
 import uuid
 import numpy as np
-from datetime import datetime
+from datetime import datetime, timezone
 
 from ..embeddings import EmbeddingService
 from ..store import MemoryStore
@@ -36,7 +36,7 @@ class TraceNormalizer:
             "id": str(uuid.uuid4()),
             "content": content,
             "type": trace.get("type", "fact"),
-            "timestamp": datetime.utcnow(),
+            "timestamp": datetime.now(timezone.utc).isoformat(),
             "embedding": embedding,
         }
 
@@ -88,7 +88,7 @@ class DuplicateResolver:
 
     def _merge(self, node: dict, trace: dict, changelog: list):
         node["evidence"].append(trace)
-        node["timestamp_updated"] = datetime.utcnow()
+        node["timestamp_updated"] = datetime.now(timezone.utc).isoformat()
 
         changelog.append(
             f"[MERGE] Trace {trace['id']} merged into node {node['id']}"

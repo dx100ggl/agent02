@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 from typing import List, Dict, Any
-from datetime import datetime
+from datetime import datetime, timezone
 import uuid
 
 from brain.c4.clustering.cluster_store import InMemoryClusterStore, Cluster
@@ -29,7 +29,7 @@ class C5BeliefLayer:
         Strengthens existing beliefs, creates new ones when needed.
         """
         clusters = self.cluster_store.all()
-        now = datetime.utcnow()
+        now = datetime.now(timezone.utc).isoformat()
 
         for cluster in clusters:
             tags = cluster.metadata.get("tags", [])

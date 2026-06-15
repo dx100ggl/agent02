@@ -12,6 +12,7 @@ from brain.c3.memory.base import MemoryRecord
 
 from brain.c4.memory_layer import C4SemanticLayer
 from brain.c5.memory_layer import C5BeliefLayer
+from brain.c5.reinforcement_engine import C5ReinforcementEngine
 
 
 class MemoryService:
@@ -44,6 +45,12 @@ class MemoryService:
         self.c4_layer = c4_layer
         self.c5_layer = c5_layer
 
+        # Optional C5 belief store + reinforcement
+        self.belief_store = getattr(c5_layer, "belief_store", None) if c5_layer else None
+        self.reinforcement_engine = (
+            C5ReinforcementEngine(self.belief_store) if self.belief_store is not None else None
+        )
+
     # ----------------------------------------------------------------------
     # PUBLIC API
     # ----------------------------------------------------------------------
@@ -72,20 +79,17 @@ class MemoryService:
         if getattr(self, "c5_layer", None) is not None:
             self.c5_layer.rebuild_beliefs()
 
-
         return result
 
     def consolidate_batch(self, traces: list[dict]) -> dict:
         engine = getattr(self, "engine", None) or getattr(self, "consolidation")
         result = engine.consolidate(traces)
 
-
         if getattr(self, "c4_layer", None) is not None:
             self.c4_layer.rebuild_clusters()
 
         if getattr(self, "c5_layer", None) is not None:
             self.c5_layer.rebuild_beliefs()
-
 
         return result
 

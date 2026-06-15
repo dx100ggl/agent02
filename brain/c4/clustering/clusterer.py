@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 from typing import Dict, Any, List, Callable, Optional
-from datetime import datetime
+from datetime import datetime, timezone
 import uuid
 
 from brain.c3.memory.store import InMemoryStore
@@ -93,7 +93,7 @@ class SimpleKeywordClusterer:
         # 3. Build clusters
         # ------------------------------------------------------------------
         cluster_store.clear()
-        now = datetime.utcnow()
+        now = datetime.now(timezone.utc).isoformat()
 
         for key, node_ids in buckets.items():
             cluster = Cluster(

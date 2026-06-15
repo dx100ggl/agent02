@@ -2,41 +2,51 @@
 
 from __future__ import annotations
 from dataclasses import dataclass, field
-from typing import Dict, Any, List
-from datetime import datetime
+from typing import Dict, Any, List, Optional
+from datetime import datetime, timezone
 import uuid
 
 
 @dataclass
 class Belief:
     id: str
-    cluster_id: str
-    content: str
+    kind: str
+    metadata: Dict[str, Any]
+    strength: float
+    cluster_id: Optional[str]
     created_at: datetime
     updated_at: datetime
-    strength: float
-    metadata: Dict[str, Any] = field(default_factory=dict)
 
 
 class InMemoryBeliefStore:
-    """
-    Simple in-memory store for C5 beliefs.
-    """
-
-    def __init__(self) -> None:
+    def __init__(self):
         self._beliefs: Dict[str, Belief] = {}
 
-    def add(self, belief: Belief) -> None:
+    # CH8 tests expect this
+    def create(self, kind: str, metadata: Dict[str, Any], strength: float, cluster_id: Optional[str]):
+        now = datetime.now(timezone.utc).isoformat()
+        return Belief(
+            id=str(uuid.uuid4()),
+            kind=kind,
+            metadata=metadata,
+            strength=strength,
+            cluster_id=cluster_id,
+            created_at=now,
+            updated_at=now,
+        )
+
+    def add(self, belief: Belief):
         self._beliefs[belief.id] = belief
 
-    def update(self, belief: Belief) -> None:
+    def update(self, belief: Belief):
+        belief.updated_at = datetime.now(timezone.utc).isoformat()
         self._beliefs[belief.id] = belief
+
+    def get(self, belief_id: str) -> Optional[Belief]:
+        return self._beliefs.get(belief_id)
 
     def all(self) -> List[Belief]:
         return list(self._beliefs.values())
 
-    def find_by_cluster(self, cluster_id: str) -> List[Belief]:
-        return [b for b in self._beliefs.values() if b.cluster_id == cluster_id]
-
-    def clear(self) -> None:
+    def clear(self):
         self._beliefs.clear()

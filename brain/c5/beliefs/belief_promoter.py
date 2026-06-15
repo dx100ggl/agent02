@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 from typing import List
-from datetime import datetime
+from datetime import datetime, timezone
 import uuid
 
 from brain.c4.clustering.cluster_store import Cluster
@@ -20,7 +20,7 @@ class SimpleBeliefPromoter:
         self.min_size = min_size
 
     def promote_from_clusters(self, clusters: List[Cluster]) -> None:
-        now = datetime.utcnow()
+        now = datetime.now(timezone.utc).isoformat()
 
         for cluster in clusters:
             # Simple rule: only promote clusters with at least min_size nodes

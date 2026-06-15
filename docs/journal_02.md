@@ -137,3 +137,6 @@ Below are the git commits.
 # 15/06/26
 
 ## [Brain-24]
+- step 6. C3 → C4 → C5 → C2 → C1 → C2 → C4 → C5 loop
+- step 7. C5 Reinforcement.
+- 

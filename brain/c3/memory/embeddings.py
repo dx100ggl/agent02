@@ -1,3 +1,5 @@
+# brain/c3/memory/embeddings.py
+
 from __future__ import annotations
 
 from typing import List
@@ -21,13 +23,37 @@ class DummyEmbeddingModel(EmbeddingModel):
         ]
 
 
-# Example placeholder for a real embedding model using your LLM stack.
-# Wire this to brain.llm.lmstudio_llm when you’re ready.
 class LMStudioEmbeddingModel(EmbeddingModel):
+    """
+    Placeholder for a real embedding model using your LM Studio LLM stack.
+    """
+
     def __init__(self, client: object) -> None:
         self._client = client
 
     def embed_text(self, text: str) -> List[float]:
         # Implement when LM Studio embedding endpoint is available.
-        # For now, you can just delegate to DummyEmbeddingModel or raise.
         raise NotImplementedError("LMStudioEmbeddingModel.embed_text is not implemented yet.")
+
+
+# ----------------------------------------------------------------------
+# NEW: EmbeddingService (required by MemoryService + ConsolidationEngine)
+# ----------------------------------------------------------------------
+
+class EmbeddingService:
+    """
+    High-level embedding wrapper used by MemoryService and ConsolidationEngine.
+
+    Default backend: DummyEmbeddingModel (deterministic, test-friendly).
+    Swap in LMStudioEmbeddingModel or any other EmbeddingModel when ready.
+    """
+
+    def __init__(self, model: EmbeddingModel | None = None):
+        # If no model is provided, use the deterministic dummy model.
+        self.model = model or DummyEmbeddingModel()
+
+    def embed(self, text: str) -> List[float]:
+        """
+        Public API used by all memory components.
+        """
+        return self.model.embed_text(text)

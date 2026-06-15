@@ -1,3 +1,5 @@
+# brain/c3/memory/base.py
+
 from __future__ import annotations
 
 from abc import ABC, abstractmethod
@@ -63,13 +65,6 @@ class MemoryStore(ABC):
     @abstractmethod
     def stats(self) -> Dict[str, Any]:
         ...
-
-
-class MemoryRetriever(ABC):
-    @abstractmethod
-    def search(self, query: MemoryQuery) -> List[MemorySearchResult]:
-        ...
-
 
 class MemoryProvider(ABC):
     """

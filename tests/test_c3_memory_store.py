@@ -1,17 +1,35 @@
 # tests/test_c3_memory_store.py
 
-from brain.c3.memory.retriever import SimpleMemoryProvider
-from brain.c3.memory.base import MemoryQuery
+from brain.c3.memory.store import InMemoryStore
+from brain.c3.memory.embeddings import EmbeddingService
+from brain.c3.memory.retriever import MemoryRetriever
+from brain.c3.memory.base import MemoryRecord, MemoryQuery
 
 
 def test_memory_store_search():
-    memory = SimpleMemoryProvider()
+    store = InMemoryStore()
+    embedder = EmbeddingService()
+    retriever = MemoryRetriever(store=store, embedder=embedder)
 
-    memory.write("cats are cute", metadata={"tags": ["animal"]})
-    memory.write("dogs are loyal", metadata={"tags": ["animal"]})
+    # Write two memory records manually (this matches the new architecture)
+    record1 = MemoryRecord(
+        id="1",
+        content="cats are cute",
+        metadata={"tags": ["animal"]},
+        embedding=embedder.embed("cats are cute"),
+    )
+    record2 = MemoryRecord(
+        id="2",
+        content="dogs are loyal",
+        metadata={"tags": ["animal"]},
+        embedding=embedder.embed("dogs are loyal"),
+    )
 
-    query = MemoryQuery(query="cats", top_k=5)
-    results = memory.search(query)
+    store.add(record1)
+    store.add(record2)
+
+    # Search using the new retriever API
+    results = retriever.retrieve("cats")
 
     assert len(results) >= 1
-    assert any("cats" in r.record.content.lower() for r in results)
+    assert any("cats" in r.lower() for r in results)

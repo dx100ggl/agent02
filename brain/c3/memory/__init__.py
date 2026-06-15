@@ -1,21 +1,18 @@
 # brain/c3/memory/__init__.py
 
-from .base import (
-    MemoryRecord,
-    MemoryQuery,
-    MemorySearchResult,
-    MemoryStore,
-    MemoryProvider,
-)
+"""
+C3 Memory subsystem package.
+Exposes the public API for memory components.
+"""
+
 from .store import InMemoryStore
-from .retriever import SimpleMemoryProvider
+from .embeddings import EmbeddingService
+from .retriever import MemoryRetriever
+from .memory_service import MemoryService
 
 __all__ = [
-    "MemoryRecord",
-    "MemoryQuery",
-    "MemorySearchResult",
-    "MemoryStore",
-    "MemoryProvider",
     "InMemoryStore",
-    "SimpleMemoryProvider",
+    "EmbeddingService",
+    "MemoryRetriever",
+    "MemoryService",
 ]

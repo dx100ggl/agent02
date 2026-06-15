@@ -1,3 +1,5 @@
+# brain/c1/planner/plan.py
+
 from __future__ import annotations
 
 from dataclasses import dataclass
@@ -45,7 +47,6 @@ class PlanStep:
 
         # Old planners expect step.description to be meaningful
         if not self.description:
-            # Default description based on kind/tool
             if self.tool_name:
                 self.description = f"{self.kind.value}: {self.tool_name}"
             else:
@@ -65,11 +66,24 @@ class ResearchPlan:
         if self.meta is None:
             self.meta = {}
 
+        # Ensure belief slot exists (C5 → C2 → C1 integration)
+        if "beliefs" not in self.meta:
+            self.meta["beliefs"] = []
+
+    # ------------------------------------------------------------------
+    # Belief integration (C5 → C1)
+    # ------------------------------------------------------------------
+    def attach_beliefs(self, beliefs: List[Any]):
+        """
+        Attach C5 beliefs to the plan metadata.
+        Non‑breaking: planners/tests that ignore beliefs continue to work.
+        """
+        self.meta["beliefs"] = beliefs or []
+
+    # ------------------------------------------------------------------
+    # Legacy API used by AdaptivePlanner
+    # ------------------------------------------------------------------
     def add_step(self, description: str, tool: str, args: Dict[str, Any]):
-        """
-        Legacy API used by AdaptivePlanner.
-        Converts old-style add_step(...) into a PlanStep.
-        """
         step = PlanStep(
             kind=PlanStepKind.TOOL if tool != "llm" else PlanStepKind.SYNTHESIZE,
             tool_name=tool,

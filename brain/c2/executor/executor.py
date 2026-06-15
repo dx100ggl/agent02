@@ -31,7 +31,52 @@ class Executor:
     def execute(self, plan: ResearchPlan, ctx: Dict[str, Any]) -> Dict[str, Any]:
         exec_ctx = {"steps": [], "final": None}
 
+        # ---------------------------------------------------------
+        # Belief‑aware execution context (C5 → C2)
+        # ---------------------------------------------------------
+        beliefs = ctx.get("beliefs", [])
+        belief_score = ctx.get("belief_score")  # from DynamicRouter
+
+        # Restricted tools (constraints)
+        restricted = []
+        for b in beliefs:
+            if getattr(b, "kind", None) == "constraint":
+                restricted.extend(b.metadata.get("tags", []))
+
+        # Verbosity
+        verbosity = None
+        if any(b.kind == "preference" and "concise" in b.metadata.get("tags", []) for b in beliefs):
+            verbosity = "concise"
+        if any(b.kind == "preference" and "detailed" in b.metadata.get("tags", []) for b in beliefs):
+            verbosity = "detailed"
+
+        # Reasoning depth
+        strong_beliefs = [b for b in beliefs if getattr(b, "strength", 0) >= 0.8]
+        reasoning_depth = "shallow" if strong_beliefs else "normal"
+
+        exec_ctx["beliefs"] = beliefs
+        exec_ctx["verbosity"] = verbosity
+        exec_ctx["reasoning_depth"] = reasoning_depth
+
+        # ---------------------------------------------------------
+        # Execute steps
+        # ---------------------------------------------------------
         for step in plan.steps:
+
+            # Block restricted tools
+            if step.tool_name and any(r in step.tool_name for r in restricted):
+                exec_ctx["steps"].append({
+                    "step": step,
+                    "error": True,
+                    "message": f"Tool '{step.tool_name}' restricted by user constraints",
+                })
+                continue
+
+            # Apply belief_score to tool selection (if provided)
+            if belief_score and step.tool_name:
+                exec_ctx.setdefault("tool_scores", {})[step.tool_name] = belief_score(step.tool_name)
+
+            # Execute step normally
             step_result = self._execute_step(step, exec_ctx)
             exec_ctx["steps"].append(step_result)
 

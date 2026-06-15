@@ -7,17 +7,12 @@ from brain.c1.planner.tool_schema import ToolSchema
 
 class AdaptivePlanner:
     """
-    Memory‑guided, tool‑aware planner.
-
-    Backward compatible with:
-        AdaptivePlanner()
-    Forward compatible with:
-        AdaptivePlanner(llm_callable=...)
+    Memory‑guided, tool‑aware planner with optional C5 belief heuristics.
     """
 
     def __init__(self, tools=None, llm_callable=None):
         self.tools = tools
-        self.llm_callable = llm_callable  # <-- NEW but optional
+        self.llm_callable = llm_callable
         self.meta_mode = "default"
         self.flags = {}
         self.preferences = {}
@@ -44,15 +39,28 @@ class AdaptivePlanner:
         plan = Plan(steps=[])
 
         mode = directive.mode.value if directive else "default"
-
-        if directive is None:
-            schema = None
-        else:
-            schema = directive.schema
+        schema = directive.schema if directive else None
 
         plan.meta["mode"] = mode
         plan.meta["schema"] = schema
 
+        # ---------------------------------------------------------
+        # NEW: Belief integration (C5 → C1)
+        # ---------------------------------------------------------
+        beliefs = []
+        if isinstance(directive, dict) and "beliefs" in directive:
+            beliefs = directive["beliefs"]
+        elif hasattr(directive, "beliefs"):
+            beliefs = directive.beliefs
+
+        plan.meta["beliefs"] = beliefs or []
+
+        # Apply belief‑driven heuristics
+        self._apply_belief_heuristics(plan)
+
+        # ---------------------------------------------------------
+        # Existing metadata logic
+        # ---------------------------------------------------------
         if self.tools:
             tool_schemas = self.tools.list_schemas()
             plan.meta["available_tools"] = list(tool_schemas.keys())
@@ -61,6 +69,9 @@ class AdaptivePlanner:
             plan.meta["memory_hits"] = len(memory_results)
             self._inject_memory_context(plan, memory_results)
 
+        # ---------------------------------------------------------
+        # Existing plan construction logic
+        # ---------------------------------------------------------
         if schema == "tool_call":
             self._build_tool_call_plan(plan, user_input)
         else:
@@ -74,7 +85,6 @@ class AdaptivePlanner:
             for step in plan.steps:
                 new_steps.append(step)
 
-                # Only add verification after tool steps
                 if step.tool:
                     verify_step = PlanStep(
                         kind=PlanStepKind.TOOL,
@@ -90,10 +100,44 @@ class AdaptivePlanner:
         return plan
 
     # ---------------------------------------------------------
+    # Belief‑driven heuristics (C5)
+    # ---------------------------------------------------------
+    def _apply_belief_heuristics(self, plan: Plan):
+        beliefs = plan.meta.get("beliefs", [])
+        if not beliefs:
+            return
+
+        # 1. Preferences → verbosity
+        if any(b.kind == "preference" and "concise" in b.metadata.get("tags", []) for b in beliefs):
+            plan.meta["verbosity"] = "low"
+
+        if any(b.kind == "preference" and "detailed" in b.metadata.get("tags", []) for b in beliefs):
+            plan.meta["verbosity"] = "high"
+
+        # 2. Skills → explanation depth
+        if any(b.kind == "skill" for b in beliefs):
+            plan.meta["explanation_level"] = "expert"
+
+        # 3. Constraints → restricted tools
+        constraints = [b for b in beliefs if b.kind == "constraint"]
+        if constraints:
+            restricted = []
+            for b in constraints:
+                restricted.extend(b.metadata.get("tags", []))
+            plan.meta["restricted_tools"] = restricted
+
+        # 4. Habits → ordering bias
+        if any(b.kind == "habit" for b in beliefs):
+            plan.meta["ordering_bias"] = "habit_first"
+
+        # 5. Strong beliefs → shallow reasoning
+        strong = [b for b in beliefs if b.strength >= 0.8]
+        plan.meta["reasoning_depth"] = "shallow" if strong else "normal"
+
+    # ---------------------------------------------------------
     # Memory‑guided context
     # ---------------------------------------------------------
     def _inject_memory_context(self, plan: Plan, memory_results):
-        # Legacy MemoryItem support
         snippets = []
         for item in memory_results[:5]:
             if hasattr(item, "text"):
@@ -117,7 +161,7 @@ class AdaptivePlanner:
     def _build_tool_call_plan(self, plan: Plan, user_input: str):
         text = user_input.lower()
 
-        # --- SPECIALIZED: research pipeline for tickers ---
+        # Specialized research pipeline
         if "research" in text:
             tokens = user_input.replace(",", " ").split()
             ticker = None
@@ -130,8 +174,6 @@ class AdaptivePlanner:
                 plan.meta["mode"] = "research"
                 plan.meta["ticker"] = ticker
 
-                # These tool names must match your ToolRegistry keys
-                # Adjust if your actual names differ.
                 plan.add_step(
                     description=f"Fetch technical/market data for {ticker}",
                     tool="use_tool",
@@ -159,7 +201,7 @@ class AdaptivePlanner:
                 )
                 return
 
-        # --- FALLBACK: existing generic tool selection logic ---
+        # Generic tool selection
         chosen_tool = None
         chosen_schema: Optional[ToolSchema] = None
 
@@ -188,37 +230,6 @@ class AdaptivePlanner:
             tool="use_tool",
             args={"tool": chosen_tool, "args": args},
         )
-
-        # -----------------------------------------
-        # Cautious Mode: safer, more explicit plans
-        # -----------------------------------------
-        if self.cautious_mode:
-            # 1. Add precondition checks before each step
-            for step in plan.steps:
-                step.preconditions = step.preconditions or []
-                step.preconditions.append("memory_check")
-                step.preconditions.append("input_available")
-
-            # 2. Add a verification step after each tool call
-            verified_steps = []
-            for step in plan.steps:
-                verified_steps.append(step)
-                if step.tool:
-                    verified_steps.append(
-                        step.clone_with(
-                            description=f"Verify result of {step.tool}",
-                            tool="verify_tool",
-                            args={"target": step.tool},
-                        )
-                    )
-            plan.steps = verified_steps
-
-            # 3. Avoid aggressive tool chaining
-            plan.meta["max_chain_length"] = 1
-
-            # 4. Prefer memory retrieval before tool calls
-            plan.meta["prefer_memory"] = True
-
 
     # ---------------------------------------------------------
     # LLM‑only plan

@@ -9,10 +9,10 @@ from brain.llm.lmstudio_llm import LMStudioLLM
 from brain.c2.executor.executor import Executor
 
 
-
 class DynamicRouter:
     """
-    C2 router with C3 memory integration.
+    C2 router with C3 + C5 integration.
+    Belief‑aware routing without breaking existing behavior.
     """
 
     def __init__(self, executor: Executor, llm: LMStudioLLM, memory: MemoryService):
@@ -26,16 +26,63 @@ class DynamicRouter:
     def route(self, user_input: str, ctx: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
         ctx = ctx or {}
 
+        # ---------------------------------------------------------
         # C3: retrieve memory
+        # ---------------------------------------------------------
         memory_hits = self._memory.retrieve(user_input)
         ctx["memory"] = memory_hits
 
+        # ---------------------------------------------------------
+        # C5: pull beliefs if available
+        # ---------------------------------------------------------
+        beliefs = []
+        if hasattr(self._memory, "get_beliefs"):
+            try:
+                beliefs = self._memory.get_beliefs()
+            except Exception:
+                beliefs = []
+        ctx["beliefs"] = beliefs
+
+        # ---------------------------------------------------------
+        # Belief‑aware routing heuristics (C5 → C2)
+        # ---------------------------------------------------------
+        restricted = []
+        for b in beliefs:
+            if getattr(b, "kind", None) == "constraint":
+                restricted.extend(b.metadata.get("tags", []))
+
+        def belief_score(tool_name: str) -> float:
+            score = 0.0
+
+            # Preferences boost matching tools
+            for b in beliefs:
+                if getattr(b, "kind", None) == "preference":
+                    tags = b.metadata.get("tags", [])
+                    if any(t in tool_name for t in tags):
+                        score += 0.5
+
+            # Constraints penalize restricted tools
+            if any(r in tool_name for r in restricted):
+                score -= 1.0
+
+            return score
+
+        ctx["belief_score"] = belief_score  # executor may use this
+
+        # ---------------------------------------------------------
         # C2: classify → build plan
+        # ---------------------------------------------------------
         decision = self._classify(user_input)
         plan = self._build_plan(decision, memory_hits)
 
-        # C2: execute
+        # ---------------------------------------------------------
+        # C2: execute plan
+        # ---------------------------------------------------------
         exec_ctx = self._executor.execute(plan, ctx)
+
+        # Attach beliefs to output so orchestrator can store them
+        exec_ctx["beliefs"] = beliefs
+
         return exec_ctx
 
     # ------------------------------------------------------------------
@@ -69,16 +116,11 @@ class DynamicRouter:
             if not ticker:
                 raise ValueError("No ticker found for fundamentals request.")
 
-            # return build_fundamentals_plan(
-            #     ticker=ticker,
-            #     intent=decision["intent"],
-            #     as_of=None,
-            # )
-        
+            # Full research pipeline
             return build_full_research_plan(
                 ticker=ticker,
                 intent=decision["intent"],
                 as_of=None,
-            )        
+            )
 
         raise ValueError(f"Unsupported route kind: {decision['kind']}")

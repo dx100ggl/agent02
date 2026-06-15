@@ -1,14 +1,16 @@
 # brain/c4/synthesizer/synthesizer.py
 
 from __future__ import annotations
-from typing import Any, Dict
+from typing import Any, Dict, List
 
 
 class Synthesizer:
     """
     Multi‑section research synthesizer.
-    Consumes normalized sections from SectionNormalizer and produces
-    a structured, LLM‑generated research report.
+    Now belief‑aware (C5 → C4):
+      - concise/detailed preferences
+      - expert‑level tone for skill beliefs
+      - shallow/normal reasoning depth
     """
 
     def __init__(self, llm: Any):
@@ -22,26 +24,54 @@ class Synthesizer:
         ticker: str,
         intent: str,
         sections: Dict[str, Any],
+        beliefs: List[Any] | None = None,
     ) -> str:
         """
         Main synthesis entrypoint.
         Accepts normalized sections and produces a full research report.
+        Beliefs optionally influence the prompt.
         """
-        prompt = self._build_prompt(ticker, intent, sections)
+        prompt = self._build_prompt(ticker, intent, sections, beliefs or [])
         raw = self.llm.run({"text": prompt})
         return self._extract_llm_text(raw)
 
     # ------------------------------------------------------------------
-    # Prompt builder
+    # Prompt builder (now belief‑aware)
     # ------------------------------------------------------------------
     def _build_prompt(
         self,
         ticker: str,
         intent: str,
         sections: Dict[str, Any],
+        beliefs: List[Any],
     ) -> str:
 
-        return f"""
+        # ---------------------------------------------------------
+        # Belief‑aware modifiers
+        # ---------------------------------------------------------
+        prefix = ""
+
+        # Concise preference
+        if any(b.kind == "preference" and "concise" in b.metadata.get("tags", []) for b in beliefs):
+            prefix += "Write the report in a concise, compact style.\n"
+
+        # Detailed preference
+        if any(b.kind == "preference" and "detailed" in b.metadata.get("tags", []) for b in beliefs):
+            prefix += "Write the report with detailed explanations and expanded analysis.\n"
+
+        # Skill → expert tone
+        if any(b.kind == "skill" for b in beliefs):
+            prefix += "Assume the reader is an expert; avoid basic explanations.\n"
+
+        # Reasoning depth
+        strong = [b for b in beliefs if getattr(b, "strength", 0) >= 0.8]
+        if strong:
+            prefix += "Use shallow reasoning and avoid long chains of inference.\n"
+
+        # ---------------------------------------------------------
+        # Base research prompt
+        # ---------------------------------------------------------
+        base = f"""
 You are Brain‑24, a multi‑tool equity research engine.
 
 Write a full, structured research report for {ticker}.
@@ -92,6 +122,8 @@ Guidelines:
 - Do not hallucinate data not implied by the sections.
 """
 
+        return prefix + base
+
     # ------------------------------------------------------------------
     # Extract text from LM Studio response
     # ------------------------------------------------------------------
@@ -115,11 +147,28 @@ Guidelines:
 
         return str(raw)
 
+    # ------------------------------------------------------------------
+    # Compatibility shim for old executor behavior
+    # ------------------------------------------------------------------
     def synthesize(self, params: Dict[str, Any], exec_ctx: Dict[str, Any]) -> str:
         """
-        Compatibility shim for old executor behavior.
         Used when a SYNTHESIZE step is executed directly.
+        Belief‑aware synthesis for generic LLM reasoning.
         """
         ticker = params.get("ticker", "UNKNOWN")
         intent = params.get("intent", "")
-        return f"Synthesis for {ticker}: {intent}"
+
+        beliefs = exec_ctx.get("beliefs", [])
+        concise = any(b.kind == "preference" and "concise" in b.metadata.get("tags", []) for b in beliefs)
+        detailed = any(b.kind == "preference" and "detailed" in b.metadata.get("tags", []) for b in beliefs)
+        expert = any(b.kind == "skill" for b in beliefs)
+
+        style = ""
+        if concise:
+            style = " (concise)"
+        elif detailed:
+            style = " (detailed)"
+        elif expert:
+            style = " (expert tone)"
+
+        return f"Synthesis for {ticker}{style}: {intent}"

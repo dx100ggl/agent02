@@ -148,8 +148,13 @@ class Orchestrator:
         if self.c3_hooks and hasattr(self.c3_hooks, "before_planning"):
             self.c3_hooks.before_planning(planning_ctx)
 
-        # 2. Planning (C1)
-        directive_raw = self.router.route(state.user_input)
+        # 2. Planning (C1 + C2 router)
+        # First call router with a basic ctx; router may enrich it with beliefs.
+        directive_raw = self.router.route(state.user_input, ctx={})
+        # If router attached beliefs into the context, persist them on state
+        if isinstance(directive_raw, dict) and "beliefs" in directive_raw:
+            state.beliefs = directive_raw["beliefs"]
+
         directive = self._wrap_directive(directive_raw)
 
         plan = self.planner.create_plan(

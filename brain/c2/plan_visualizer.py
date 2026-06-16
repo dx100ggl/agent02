@@ -2,6 +2,13 @@
 
 from typing import List, Dict, Any
 from brain.c1.planner.plan import Plan
+from brain.c2.process_model import (
+    ProcessModel,
+    ProcessNode,
+    ProcessEdge,
+    NodeKind,
+    EdgeKind,
+)
 
 
 class PlanVisualizer:
@@ -51,3 +58,64 @@ class PlanVisualizer:
             lines.append("(no meta)")
 
         return "\n".join(lines)
+
+class ProcessGraphVisualizer:
+    """
+    Renders a ProcessModel as a simple ASCII or GraphViz-style diagram.
+    This is intentionally lightweight and dependency-free.
+    """
+
+    def __init__(self, model: ProcessModel):
+        self.model = model
+
+    # ---------------------------------------------------------
+    # ASCII rendering
+    # ---------------------------------------------------------
+    def to_ascii(self) -> str:
+        lines = []
+        lines.append(f"ProcessModel(id={self.model.id})")
+        lines.append("")
+
+        # Nodes
+        lines.append("Nodes:")
+        for node_id, node in self.model.nodes.items():
+            lines.append(f"  - {node_id} [{node.kind.name}]")
+        lines.append("")
+
+        # Edges
+        lines.append("Edges:")
+        for e in self.model.edges:
+            cond = "cond" if e.condition else ""
+            lines.append(f"  {e.source} -> {e.target} ({e.kind.name}) {cond}")
+        lines.append("")
+
+        return "\n".join(lines)
+
+    # ---------------------------------------------------------
+    # GraphViz DOT rendering
+    # ---------------------------------------------------------
+    def to_dot(self) -> str:
+        out = []
+        out.append("digraph ProcessModel {")
+        out.append('  rankdir="LR";')
+
+        # Node styles
+        for node_id, node in self.model.nodes.items():
+            shape = {
+                NodeKind.START: "circle",
+                NodeKind.TASK: "box",
+                NodeKind.DECISION: "diamond",
+                NodeKind.END: "doublecircle",
+            }.get(node.kind, "box")
+
+            out.append(f'  "{node_id}" [shape={shape}, label="{node_id}"];')
+
+        # Edges
+        for e in self.model.edges:
+            label = ""
+            if e.kind == EdgeKind.ERROR:
+                label = " [color=red]"
+            out.append(f'  "{e.source}" -> "{e.target}"{label};')
+
+        out.append("}")
+        return "\n".join(out)

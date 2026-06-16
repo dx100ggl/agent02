@@ -5,6 +5,12 @@ import json
 from typing import Any, Dict
 
 from brain.c1.planner.plan import ResearchPlan, PlanStep, PlanStepKind
+from brain.c2.process_model import (
+    ProcessModel,
+    ProcessNode,
+    NodeKind,
+    ProcessRunner,
+)
 
 
 class Executor:
@@ -16,14 +22,21 @@ class Executor:
     DynamicRouter tests keep this disabled, so no LLM calls occur.
     """
 
-    def __init__(self, tools=None, synthesizer=None, llm=None, memory=None):
+    def __init__(self, tools=None, synthesizer=None, llm=None, memory=None, repair_planner=None):
         self._tools = tools
         self._synth = synthesizer
         self._llm = llm
         self.memory = memory
+        self.repair_planner = repair_planner
 
         # OFF by default — DynamicRouter tests rely on this
         self.enable_argument_validation = False
+
+        # Optional: max repair attempts
+        self.max_repair_attempts = 1
+
+        self._debug_override_model = None
+
 
     # ------------------------------------------------------------------
     # Public entrypoint
@@ -58,30 +71,8 @@ class Executor:
         exec_ctx["verbosity"] = verbosity
         exec_ctx["reasoning_depth"] = reasoning_depth
 
-        # ---------------------------------------------------------
-        # Execute steps
-        # ---------------------------------------------------------
-        for step in plan.steps:
+        return self._execute_with_process_model(plan, exec_ctx)
 
-            # Block restricted tools
-            if step.tool_name and any(r in step.tool_name for r in restricted):
-                exec_ctx["steps"].append({
-                    "step": step,
-                    "error": True,
-                    "message": f"Tool '{step.tool_name}' restricted by user constraints",
-                })
-                continue
-
-            # Apply belief_score to tool selection (if provided)
-            if belief_score and step.tool_name:
-                exec_ctx.setdefault("tool_scores", {})[step.tool_name] = belief_score(step.tool_name)
-
-            # Execute step normally
-            step_result = self._execute_step(step, exec_ctx)
-            exec_ctx["steps"].append(step_result)
-
-        exec_ctx["final"] = exec_ctx["steps"][-1] if exec_ctx["steps"] else None
-        return exec_ctx
 
     # ------------------------------------------------------------------
     # Step execution
@@ -255,3 +246,96 @@ Only return the JSON. No commentary.
                     raise TypeError(f"Argument '{key}' must be a boolean for tool '{tool.name}'")
 
         return True
+
+    # ------------------------------------------------------------------
+    # Build a ProcessModel from a ResearchPlan
+    # ------------------------------------------------------------------
+    def _build_model_from_plan(self, plan: ResearchPlan) -> ProcessModel:
+        model = ProcessModel(id="executor-process")
+
+        # Start node
+        model.add_node(ProcessNode(id="start", kind=NodeKind.START), is_start=True)
+
+        # Create nodes for each step
+        for step in plan.steps:
+            def make_handler(s: PlanStep):
+                def handler(ctx: Dict[str, Any]):
+                    result = self._execute_step(s, ctx)
+                    ctx["steps"].append(result)
+                return handler
+
+            model.add_node(
+                ProcessNode(
+                    id=step.id,
+                    kind=NodeKind.TASK,
+                    handler=make_handler(step),
+                )
+            )
+
+        # End node
+        model.add_node(ProcessNode(id="end", kind=NodeKind.END))
+
+        # Edges: start → first step
+        if plan.steps:
+            model.add_edge("start", plan.steps[0].id)
+
+        # Edges: step[i] → step[i+1]
+        for i in range(len(plan.steps) - 1):
+            model.add_edge(plan.steps[i].id, plan.steps[i + 1].id)
+
+        # Last step → end
+        if plan.steps:
+            model.add_edge(plan.steps[-1].id, "end")
+        else:
+            model.add_edge("start", "end")
+
+        return model
+
+    # ------------------------------------------------------------------
+    # ProcessModel-based execution
+    # ------------------------------------------------------------------
+    def _execute_with_process_model(self, plan: ResearchPlan, exec_ctx: Dict[str, Any]) -> Dict[str, Any]:
+        """
+        Wraps the existing step execution logic inside a ProcessModel.
+        If _debug_override_model is set, use it directly (for tests).
+        """
+
+        # -----------------------------------------
+        # TEST HOOK: allow injecting a custom model
+        # -----------------------------------------
+        if self._debug_override_model is not None:
+            model = self._debug_override_model
+        else:
+            model = self._build_model_from_plan(plan)
+
+        # -----------------------------
+        # Repair-aware execution loop
+        # -----------------------------
+        attempts = 0
+        while True:
+            try:
+                # IMPORTANT: both constructor AND run() must be inside try
+                runner = ProcessRunner(model)
+                runner.run(exec_ctx)
+                break
+
+            except Exception as e:
+                # No repair planner → re-raise immediately
+                if self.repair_planner is None:
+                    raise
+
+                attempts += 1
+                if attempts > getattr(self, "max_repair_attempts", 1):
+                    raise
+
+                failing_node_id = getattr(e, "node_id", "unknown")
+                model = self.repair_planner.repair_process_model(
+                    model=model,
+                    failing_node_id=failing_node_id,
+                    ctx=exec_ctx,
+                    error=e,
+                )
+
+        exec_ctx["final"] = exec_ctx["steps"][-1] if exec_ctx["steps"] else None
+        return exec_ctx
+

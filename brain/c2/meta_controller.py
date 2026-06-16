@@ -4,7 +4,12 @@ from __future__ import annotations
 from typing import Any, Dict, Optional
 
 from brain.c2.meta_types import MetaSignal, MetaDecision
-
+from brain.c2.process_model import (
+    # ProcessModel,
+    ProcessNode,
+    NodeKind,
+    # ProcessRunner,
+)
 
 class MetaController:
     """
@@ -175,3 +180,21 @@ class MetaController:
                 actions.append({"enforce_preconditions": True})
 
         return actions
+
+    # C6 → C2 hooks
+    def before_node(self, node, ctx):
+        if node.id == "fetch_market_data":
+            return {"action": "skip"}
+
+
+    def after_node(self, node, ctx):
+        if node.id == "analyze":
+            return {
+                "action": "insert_after",
+                "node": ProcessNode(
+                    id="double_check",
+                    kind=NodeKind.TASK,
+                    handler=lambda c: c.update({"checked": True}),
+                )
+            }
+

@@ -136,7 +136,15 @@ Below are the git commits.
 
 # 15/06/26
 
-## [Brain-24]
+## [Brain-24. CH8](https://copilot.microsoft.com/shares/pages/bo6T7w5k1ULWs1v71z7BV)
+- Goal: integrate beliefs into the orchestrator pipeline
+- Key component: InMemoryBeliefStore
 - step 6. C3 → C4 → C5 → C2 → C1 → C2 → C4 → C5 loop
 - step 7. C5 Reinforcement.
-- 
+
+# 16/06/26
+
+## [Agent OS: Next Chapter Planning](https://copilot.microsoft.com/shares/pages/7pmQg2Q8iALSJwPP3iprC)
+- [Review our current stage relative to the ultimate goal](https://copilot.microsoft.com/shares/pages/7pmQg2Q8iALSJwPP3iprC)
+- [Agent OS -- Guiding Light of the Autonomy Era](https://copilot.microsoft.com/shares/pages/oXsdTnSb6sE3RFDJ6vTLB)
+  - I also documented this [here](autonomy.md)

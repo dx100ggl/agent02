@@ -9,6 +9,7 @@ from brain.c2.process_model import (
     EdgeKind,
 )
 
+
 class C2RepairPlanner:
     def repair(self, plan):
         return {
@@ -26,6 +27,13 @@ class C2RepairPlanner:
         ctx: Dict[str, Any],
         error: Exception,
     ) -> ProcessModel:
+        """
+        Default repair strategy:
+          - Insert a repair node immediately after the failing node.
+          - Disable the failing node so it cannot throw again.
+          - Reroute outgoing edges through the repair node.
+        """
+
         repair_node_id = f"repair_{failing_node_id}"
 
         def repair_handler(c):
@@ -51,13 +59,25 @@ class C2RepairPlanner:
         outgoing = model.outgoing(failing_node_id)
 
         # Remove edges OUT OF failing node
-        model.edges = [e for e in model.edges if e.source != failing_node_id]
+        model.edges = [
+            e for e in model.edges
+            if e.source != failing_node_id
+        ]
 
         # Insert new edge: failing_node -> repair_node
-        model.add_edge(failing_node_id, repair_node_id)
+        model.add_edge(
+            failing_node_id,
+            repair_node_id,
+            kind=EdgeKind.NORMAL,
+        )
 
         # Reconnect repair_node to original targets
         for e in outgoing:
-            model.add_edge(repair_node_id, e.target, kind=e.kind, condition=e.condition)
+            model.add_edge(
+                repair_node_id,
+                e.target,
+                kind=e.kind,
+                condition=e.condition,
+            )
 
         return model

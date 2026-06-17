@@ -298,15 +298,33 @@ Only return the JSON. No commentary.
         """
         Wraps the existing step execution logic inside a ProcessModel.
         If _debug_override_model is set, use it directly (for tests).
+        Adds:
+        - Debug trace logging for each step and transition
+        - Optional DOT graph dump of the ProcessModel
         """
+
+        import logging
+        logger = logging.getLogger(__name__)
 
         # -----------------------------------------
         # TEST HOOK: allow injecting a custom model
         # -----------------------------------------
         if self._debug_override_model is not None:
             model = self._debug_override_model
+            logger.debug("[DEBUG] Using debug override ProcessModel")
         else:
             model = self._build_model_from_plan(plan)
+            logger.debug(f"[MODEL] Built ProcessModel: {model.name}")
+
+        # -----------------------------------------
+        # OPTIONAL: dump DOT graph for debugging
+        # -----------------------------------------
+        try:
+            dot = model.to_dot()
+            exec_ctx.setdefault("_debug", {})["process_model_dot"] = dot
+            logger.debug("[MODEL] DOT graph generated for ProcessModel")
+        except Exception as e:
+            logger.warning(f"[MODEL] Failed to generate DOT graph: {e}")
 
         # -----------------------------
         # Repair-aware execution loop
@@ -314,21 +332,35 @@ Only return the JSON. No commentary.
         attempts = 0
         while True:
             try:
-                # IMPORTANT: both constructor AND run() must be inside try
+                logger.debug("[RUNNER] Starting ProcessRunner")
                 runner = ProcessRunner(model)
+
+                # Add debug trace hook: ProcessRunner should emit step-level logs
                 runner.run(exec_ctx)
+
+                logger.debug("[RUNNER] ProcessRunner completed successfully")
                 break
 
             except Exception as e:
+                logger.exception(f"[ERROR] ProcessRunner failed: {e}")
+
                 # No repair planner → re-raise immediately
                 if self.repair_planner is None:
+                    logger.debug("[REPAIR] No repair planner available → rethrowing")
                     raise
 
                 attempts += 1
-                if attempts > getattr(self, "max_repair_attempts", 1):
+                max_attempts = getattr(self, "max_repair_attempts", 1)
+
+                if attempts > max_attempts:
+                    logger.debug(f"[REPAIR] Exceeded max repair attempts ({max_attempts}) → rethrowing")
                     raise
 
                 failing_node_id = getattr(e, "node_id", "unknown")
+                logger.debug(
+                    f"[REPAIR] Attempt {attempts}/{max_attempts} repairing failing node: {failing_node_id}"
+                )
+
                 model = self.repair_planner.repair_process_model(
                     model=model,
                     failing_node_id=failing_node_id,
@@ -336,6 +368,13 @@ Only return the JSON. No commentary.
                     error=e,
                 )
 
+                logger.debug("[REPAIR] Repair planner produced updated ProcessModel")
+
+        # -----------------------------------------
+        # Finalize execution context
+        # -----------------------------------------
         exec_ctx["final"] = exec_ctx["steps"][-1] if exec_ctx["steps"] else None
+        logger.debug(f"[FINAL] Final step output: {exec_ctx['final']}")
+
         return exec_ctx
 

@@ -1,5 +1,6 @@
-from __future__ import annotations
+# brain/c2/process_model.py
 
+from __future__ import annotations
 from dataclasses import dataclass, field
 from enum import Enum, auto
 from typing import Any, Callable, Dict, List, Optional

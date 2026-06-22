@@ -148,3 +148,11 @@ Below are the git commits.
 - [Review our current stage relative to the ultimate goal](https://copilot.microsoft.com/shares/pages/7pmQg2Q8iALSJwPP3iprC)
 - [Agent OS -- Guiding Light of the Autonomy Era](https://copilot.microsoft.com/shares/pages/oXsdTnSb6sE3RFDJ6vTLB)
   - I also documented this [here](autonomy.md)
+- [summary of 17/06/26](https://copilot.microsoft.com/shares/pages/S4WCqvgbEifquNABwQ4h2)
+- on 18/06/26, the next steps are:
+  - A. Add repair logging
+  - B. Add DOT/Graphviz export
+  - C. Add model validation
+  - D. Add multi‑step repair strategies
+  - E. Move to the next subsystem (planner, memory, etc.)
+

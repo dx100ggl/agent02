@@ -1,7 +1,6 @@
 # brain/c2/repair_planner.py
 
 from typing import Dict, Any, Optional, List
-from datetime import datetime
 
 from brain.c2.process_model import (
     ProcessModel,
@@ -28,15 +27,6 @@ class C2RepairPlanner:
         ctx: Dict[str, Any],
         error: Exception,
     ) -> ProcessModel:
-        # Initialize repair log
-        ctx.setdefault("repair_log", [])
-        ctx["repair_log"].append({
-            "timestamp": datetime.utcnow().isoformat(),
-            "event": "repair_started",
-            "failing_node": failing_node_id,
-            "error": str(error),
-        })
-
         """
         Default repair strategy:
           - Insert a repair node immediately after the failing node.
@@ -81,13 +71,6 @@ class C2RepairPlanner:
             kind=EdgeKind.NORMAL,
         )
 
-        # Log repair node insertion
-        ctx["repair_log"].append({
-            "timestamp": datetime.utcnow().isoformat(),
-            "event": "inserted_repair_node",
-            "repair_node": repair_node_id,
-        })
-
         # Reconnect repair_node to original targets
         for e in outgoing:
             model.add_edge(
@@ -96,13 +79,5 @@ class C2RepairPlanner:
                 kind=e.kind,
                 condition=e.condition,
             )
-
-        # Log reconnection
-        ctx["repair_log"].append({
-            "timestamp": datetime.utcnow().isoformat(),
-            "event": "reconnected_edges",
-            "repair_node": repair_node_id,
-            "targets": [e.target for e in outgoing],
-        })
 
         return model

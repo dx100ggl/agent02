@@ -1,3 +1,5 @@
+# brain/c2/visualize.py
+
 from brain.c1.planner.plan import Plan
 from brain.c2.plan_visualizer import PlanVisualizer
 

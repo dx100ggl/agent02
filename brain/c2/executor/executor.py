@@ -12,14 +12,14 @@ from brain.c2.process_model import (
     ProcessRunner,
 )
 
+# NEW: master section normalizer
+from brain.c4.normalizers.section_normalizer import SectionNormalizer
+
 
 class Executor:
     """
-    Deterministic C2 executor (Option A).
-    Executes steps in order.
-    If a tool fails, asks the LLM for a repair — BUT ONLY when
-    enable_argument_validation=True (Orchestrator turns this on).
-    DynamicRouter tests keep this disabled, so no LLM calls occur.
+    Stabilized C2 executor.
+    Now collects raw tool outputs → normalizes → calls Synthesizer.synthesize_from_sections().
     """
 
     def __init__(self, tools=None, synthesizer=None, llm=None, memory=None, repair_planner=None):
@@ -36,6 +36,9 @@ class Executor:
         self.max_repair_attempts = 1
 
         self._debug_override_model = None
+
+        # NEW: master normalizer
+        self._section_normalizer = SectionNormalizer()
 
 
     # ------------------------------------------------------------------
@@ -80,29 +83,86 @@ class Executor:
     def _execute_step(self, step: PlanStep, exec_ctx: Dict[str, Any]) -> Dict[str, Any]:
         kind = step.kind
 
+        # FUNDAMENTALS
         if kind == PlanStepKind.FUNDAMENTALS:
-            return self._execute_fundamentals(step)
+            out = self._execute_fundamentals(step)
+            exec_ctx["fundamentals_data"] = out["result"]
+            return out
 
+        # SYNTHESIZE (UPDATED)
         if kind == PlanStepKind.SYNTHESIZE:
-            return self._execute_synthesis(step, exec_ctx)
+            return self._execute_synthesis_stabilized(step, exec_ctx)
 
+        # GENERIC TOOL STEPS
         if kind == PlanStepKind.TOOL:
-            return self._execute_tool(step)
+            out = self._execute_tool(step)
+            return out
 
-        if kind == PlanStepKind.SEARCH:
-            return self._execute_search(step)
+        # MARKET / TECHNICALS / OPTIONS / SENTIMENT / MACRO / ANALOGS
+        if kind == PlanStepKind.MARKET_DATA:
+            out = self._execute_tool(step)
+            exec_ctx["market_data"] = out["result"]
+            return out
 
-        if kind in {
-            PlanStepKind.MARKET_DATA,
-            PlanStepKind.TECHNICALS,
-            PlanStepKind.OPTIONS,
-            PlanStepKind.SENTIMENT,
-            PlanStepKind.MACRO,
-            PlanStepKind.ANALOGS,
-        }:
-            return self._execute_tool(step)
+        if kind == PlanStepKind.TECHNICALS:
+            out = self._execute_tool(step)
+            exec_ctx["technicals_data"] = out["result"]
+            return out
+
+        if kind == PlanStepKind.OPTIONS:
+            out = self._execute_tool(step)
+            exec_ctx["options_data"] = out["result"]
+            return out
+
+        if kind == PlanStepKind.SENTIMENT:
+            out = self._execute_tool(step)
+            exec_ctx["sentiment_data"] = out["result"]
+            return out
+
+        if kind == PlanStepKind.MACRO:
+            out = self._execute_tool(step)
+            exec_ctx["macro_data"] = out["result"]
+            return out
+
+        if kind == PlanStepKind.ANALOGS:
+            out = self._execute_tool(step)
+            exec_ctx["analogs_data"] = out["result"]
+            return out
 
         return {"step": step, "error": True, "message": f"Unknown step kind: {kind}"}
+
+
+    # ------------------------------------------------------------------
+    # NEW: Stabilized synthesis step
+    # ------------------------------------------------------------------
+    def _execute_synthesis_stabilized(self, step: PlanStep, exec_ctx: Dict[str, Any]) -> Dict[str, Any]:
+        """
+        Stabilized synthesis:
+        - Collect raw tool outputs from exec_ctx
+        - Normalize via SectionNormalizer
+        - Call Synthesizer.synthesize_from_sections()
+        """
+
+        # 1. Normalize all sections
+        sections = self._section_normalizer.normalize(exec_ctx)
+
+        # 2. Extract ticker + intent from step params
+        ticker = step.params.get("ticker", "UNKNOWN")
+        intent = step.params.get("intent", "")
+
+        # 3. Beliefs already stored in exec_ctx
+        beliefs = exec_ctx.get("beliefs", [])
+
+        # 4. Call the new stabilized synthesizer
+        result = self._synth.synthesize_from_sections(
+            ticker=ticker,
+            intent=intent,
+            sections=sections,
+            beliefs=beliefs,
+        )
+
+        return {"step": step, "result": result, "repaired": False}
+
 
     # ------------------------------------------------------------------
     # Fundamentals step
@@ -132,12 +192,6 @@ class Executor:
             "repair_args": repaired_args,
         }
 
-    # ------------------------------------------------------------------
-    # Synthesis step
-    # ------------------------------------------------------------------
-    def _execute_synthesis(self, step: PlanStep, exec_ctx: Dict[str, Any]) -> Dict[str, Any]:
-        result = self._synth.synthesize(step.params, exec_ctx)
-        return {"step": step, "result": result, "repaired": False}
 
     # ------------------------------------------------------------------
     # Generic tool step
@@ -167,11 +221,13 @@ class Executor:
             "repair_args": repaired_args,
         }
 
+
     # ------------------------------------------------------------------
     # Search step (optional)
     # ------------------------------------------------------------------
     def _execute_search(self, step: PlanStep) -> Dict[str, Any]:
         return {"step": step, "result": {"search": "not implemented"}, "repaired": False}
+
 
     # ------------------------------------------------------------------
     # Tool call wrapper
@@ -194,6 +250,7 @@ class Executor:
 
     def _is_failure(self, result: Any) -> bool:
         return isinstance(result, dict) and result.get("error")
+
 
     # ------------------------------------------------------------------
     # LLM-based argument repair
@@ -222,6 +279,7 @@ Only return the JSON. No commentary.
 
         return args
 
+
     # ------------------------------------------------------------------
     # Argument validation
     # ------------------------------------------------------------------
@@ -246,6 +304,7 @@ Only return the JSON. No commentary.
                     raise TypeError(f"Argument '{key}' must be a boolean for tool '{tool.name}'")
 
         return True
+
 
     # ------------------------------------------------------------------
     # Build a ProcessModel from a ResearchPlan
@@ -290,6 +349,7 @@ Only return the JSON. No commentary.
             model.add_edge("start", "end")
 
         return model
+
 
     # ------------------------------------------------------------------
     # ProcessModel-based execution
@@ -377,4 +437,3 @@ Only return the JSON. No commentary.
         logger.debug(f"[FINAL] Final step output: {exec_ctx['final']}")
 
         return exec_ctx
-

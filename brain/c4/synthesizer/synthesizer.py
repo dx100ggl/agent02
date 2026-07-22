@@ -1,24 +1,55 @@
-# brain/c4/synthesizer/synthesizer.py
-
 from __future__ import annotations
+from dataclasses import dataclass
 from typing import Any, Dict, List
 
+# Belief modifiers (new modular file)
+from .modifiers import BeliefModifiers, normalize_beliefs
+
+
+# ================================================================
+# Research sections (stable schema)
+# ================================================================
+
+@dataclass(frozen=True)
+class ResearchSections:
+    market: str
+    technicals: str
+    options: str
+    sentiment: str
+    macro: str
+    analogs: str
+    fundamentals: str
+
+    @staticmethod
+    def from_dict(d: Dict[str, Any]) -> "ResearchSections":
+        # Deterministic fallback to empty string
+        return ResearchSections(
+            market=str(d.get("market", "")),
+            technicals=str(d.get("technicals", "")),
+            options=str(d.get("options", "")),
+            sentiment=str(d.get("sentiment", "")),
+            macro=str(d.get("macro", "")),
+            analogs=str(d.get("analogs", "")),
+            fundamentals=str(d.get("fundamentals", "")),
+        )
+
+
+# ================================================================
+# Stabilized Synthesizer
+# ================================================================
 
 class Synthesizer:
     """
-    Multi‑section research synthesizer.
-    Now belief‑aware (C5 → C4):
-      - concise/detailed preferences
-      - expert‑level tone for skill beliefs
-      - shallow/normal reasoning depth
+    Stabilized multi‑section research synthesizer.
+    Deterministic, belief‑aware, schema‑validated.
     """
 
     def __init__(self, llm: Any):
         self.llm = llm
 
-    # ------------------------------------------------------------------
-    # Public API used by ResearchEngine
-    # ------------------------------------------------------------------
+    # --------------------------------------------------------------
+    # Public API
+    # --------------------------------------------------------------
     def synthesize_from_sections(
         self,
         ticker: str,
@@ -26,51 +57,39 @@ class Synthesizer:
         sections: Dict[str, Any],
         beliefs: List[Any] | None = None,
     ) -> str:
-        """
-        Main synthesis entrypoint.
-        Accepts normalized sections and produces a full research report.
-        Beliefs optionally influence the prompt.
-        """
-        prompt = self._build_prompt(ticker, intent, sections, beliefs or [])
+
+        mods = normalize_beliefs(beliefs or [])
+        sec = ResearchSections.from_dict(sections)
+
+        prompt = self._build_prompt(ticker, intent, sec, mods)
         raw = self.llm.run({"text": prompt})
+
         return self._extract_llm_text(raw)
 
-    # ------------------------------------------------------------------
-    # Prompt builder (now belief‑aware)
-    # ------------------------------------------------------------------
+    # --------------------------------------------------------------
+    # Deterministic prompt builder
+    # --------------------------------------------------------------
     def _build_prompt(
         self,
         ticker: str,
         intent: str,
-        sections: Dict[str, Any],
-        beliefs: List[Any],
+        sec: ResearchSections,
+        mods: BeliefModifiers,
     ) -> str:
 
-        # ---------------------------------------------------------
-        # Belief‑aware modifiers
-        # ---------------------------------------------------------
-        prefix = ""
+        prefix_lines = []
 
-        # Concise preference
-        if any(b.kind == "preference" and "concise" in b.metadata.get("tags", []) for b in beliefs):
-            prefix += "Write the report in a concise, compact style.\n"
+        if mods.concise:
+            prefix_lines.append("Write the report in a concise, compact style.")
+        if mods.detailed:
+            prefix_lines.append("Write the report with detailed explanations and expanded analysis.")
+        if mods.expert:
+            prefix_lines.append("Assume the reader is an expert; avoid basic explanations.")
+        if mods.shallow_reasoning:
+            prefix_lines.append("Use shallow reasoning and avoid long chains of inference.")
 
-        # Detailed preference
-        if any(b.kind == "preference" and "detailed" in b.metadata.get("tags", []) for b in beliefs):
-            prefix += "Write the report with detailed explanations and expanded analysis.\n"
+        prefix = "\n".join(prefix_lines)
 
-        # Skill → expert tone
-        if any(b.kind == "skill" for b in beliefs):
-            prefix += "Assume the reader is an expert; avoid basic explanations.\n"
-
-        # Reasoning depth
-        strong = [b for b in beliefs if getattr(b, "strength", 0) >= 0.8]
-        if strong:
-            prefix += "Use shallow reasoning and avoid long chains of inference.\n"
-
-        # ---------------------------------------------------------
-        # Base research prompt
-        # ---------------------------------------------------------
         base = f"""
 You are Brain‑24, a multi‑tool equity research engine.
 
@@ -81,38 +100,38 @@ Below are normalized research sections from multiple tools:
 
 ===========================
 [MARKET]
-{sections.get("market")}
+{sec.market}
 
 [TECHNICALS]
-{sections.get("technicals")}
+{sec.technicals}
 
 [OPTIONS]
-{sections.get("options")}
+{sec.options}
 
 [SENTIMENT]
-{sections.get("sentiment")}
+{sec.sentiment}
 
 [MACRO]
-{sections.get("macro")}
+{sec.macro}
 
 [ANALOGS]
-{sections.get("analogs")}
+{sec.analogs}
 
 [FUNDAMENTALS]
-{sections.get("fundamentals")}
+{sec.fundamentals}
 ===========================
 
 Write a structured research report with the following sections:
 
-1) Market regime overview  
-2) Technical structure and key levels  
-3) Options market and volatility context  
-4) Sentiment and narrative  
-5) Macro and sector overlay  
-6) Historical analogs (1–3 year lookback)  
-7) Fundamentals snapshot  
-8) 1–4 week scenarios (bull / base / bear)  
-9) Key levels, triggers, and invalidations  
+1) Market regime overview
+2) Technical structure and key levels
+3) Options market and volatility context
+4) Sentiment and narrative
+5) Macro and sector overlay
+6) Historical analogs (1–3 year lookback)
+7) Fundamentals snapshot
+8) 1–4 week scenarios (bull / base / bear)
+9) Key levels, triggers, and invalidations
 10) Final synthesis and risk summary
 
 Guidelines:
@@ -122,53 +141,45 @@ Guidelines:
 - Do not hallucinate data not implied by the sections.
 """
 
-        return prefix + base
+        return prefix + "\n" + base
 
-    # ------------------------------------------------------------------
-    # Extract text from LM Studio response
-    # ------------------------------------------------------------------
+    # --------------------------------------------------------------
+    # Strict LM response extraction
+    # --------------------------------------------------------------
     def _extract_llm_text(self, raw: Any) -> str:
         if isinstance(raw, dict):
-            # Chat completion format
-            if "choices" in raw and raw["choices"]:
-                msg = raw["choices"][0].get("message", {})
-                if "content" in msg:
-                    return msg["content"]
+            # LM Studio chat format
+            if "choices" in raw:
+                choices = raw["choices"]
+                if isinstance(choices, list) and choices:
+                    msg = choices[0].get("message", {})
+                    content = msg.get("content")
+                    if isinstance(content, str):
+                        return content
+                raise ValueError("Malformed LLM response: missing choices/message/content")
 
-            # Legacy formats
-            return (
-                raw.get("answer")
-                or raw.get("LLM")
-                or raw.get("text")
-                or raw.get("output")
-                or raw.get("response")
-                or ""
-            )
+            # No silent fallback — enforce explicit schema
+            raise ValueError("Malformed LLM response: expected chat-completion format")
 
+        # Non-dict → treat as plain text
         return str(raw)
 
-    # ------------------------------------------------------------------
-    # Compatibility shim for old executor behavior
-    # ------------------------------------------------------------------
+    # --------------------------------------------------------------
+    # Legacy compatibility shim
+    # --------------------------------------------------------------
     def synthesize(self, params: Dict[str, Any], exec_ctx: Dict[str, Any]) -> str:
-        """
-        Used when a SYNTHESIZE step is executed directly.
-        Belief‑aware synthesis for generic LLM reasoning.
-        """
         ticker = params.get("ticker", "UNKNOWN")
         intent = params.get("intent", "")
 
-        beliefs = exec_ctx.get("beliefs", [])
-        concise = any(b.kind == "preference" and "concise" in b.metadata.get("tags", []) for b in beliefs)
-        detailed = any(b.kind == "preference" and "detailed" in b.metadata.get("tags", []) for b in beliefs)
-        expert = any(b.kind == "skill" for b in beliefs)
+        mods = normalize_beliefs(exec_ctx.get("beliefs", []))
 
-        style = ""
-        if concise:
+        if mods.concise:
             style = " (concise)"
-        elif detailed:
+        elif mods.detailed:
             style = " (detailed)"
-        elif expert:
+        elif mods.expert:
             style = " (expert tone)"
+        else:
+            style = ""
 
         return f"Synthesis for {ticker}{style}: {intent}"
